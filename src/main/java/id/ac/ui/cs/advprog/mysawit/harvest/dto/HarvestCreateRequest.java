@@ -5,23 +5,29 @@ import java.math.BigDecimal;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Positive;
-import lombok.Getter;
-import lombok.Setter;
 
-@Getter
-@Setter
 public class HarvestCreateRequest {
-
-    @NotBlank
-    private String plantationId;
-
-    @NotBlank
-    private String buruhId;
 
     @NotNull
     @Positive
     private BigDecimal weightKg;
 
     @NotBlank
-    private String description;
+    private String notes;
+
+    public BigDecimal getWeightKg() {
+        return weightKg;
+    }
+
+    public void setWeightKg(BigDecimal weightKg) {
+        this.weightKg = weightKg;
+    }
+
+    public String getNotes() {
+        return notes;
+    }
+
+    public void setNotes(String notes) {
+        this.notes = notes;
+    }
 }

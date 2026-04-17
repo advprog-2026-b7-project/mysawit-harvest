@@ -1,7 +1,10 @@
 package id.ac.ui.cs.advprog.mysawit.harvest.exception;
 
-public class HarvestAlreadyExistsException extends RuntimeException {
+import id.ac.ui.cs.advprog.mysawit.harvest.error.HarvestErrorKey;
+
+public class HarvestAlreadyExistsException extends HarvestConflictException {
+
     public HarvestAlreadyExistsException(String message) {
-        super(message);
+        super(HarvestErrorKey.HARVEST_ALREADY_SUBMITTED_TODAY, message);
     }
 }
