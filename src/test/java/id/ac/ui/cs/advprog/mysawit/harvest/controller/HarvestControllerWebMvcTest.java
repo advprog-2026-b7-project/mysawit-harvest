@@ -18,15 +18,18 @@ import org.springframework.data.domain.Pageable;
 import org.springframework.http.HttpHeaders;
 import org.springframework.test.web.servlet.MockMvc;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.patch;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
+import id.ac.ui.cs.advprog.mysawit.harvest.dto.ApproveHarvestResponse;
 import id.ac.ui.cs.advprog.mysawit.harvest.dto.HarvestPageResponse;
 import id.ac.ui.cs.advprog.mysawit.harvest.dto.HarvestResponse;
 import id.ac.ui.cs.advprog.mysawit.harvest.error.HarvestErrorKey;
 import id.ac.ui.cs.advprog.mysawit.harvest.exception.HarvestAuthorizationException;
 import id.ac.ui.cs.advprog.mysawit.harvest.model.HarvestStatus;
 import id.ac.ui.cs.advprog.mysawit.harvest.security.HarvestJwtClaimsResolver;
+import id.ac.ui.cs.advprog.mysawit.harvest.security.HarvestReviewerContext;
 import id.ac.ui.cs.advprog.mysawit.harvest.security.HarvestViewerContext;
 import id.ac.ui.cs.advprog.mysawit.harvest.service.HarvestHistoryService;
 import id.ac.ui.cs.advprog.mysawit.harvest.service.HarvestService;
@@ -102,6 +105,47 @@ class HarvestControllerWebMvcTest {
 
         mockMvc.perform(get("/api/v1/harvests")
                         .header(HttpHeaders.AUTHORIZATION, "Bearer denied-token"))
+                .andExpect(status().isForbidden())
+                .andExpect(jsonPath("$.status").value("error"))
+                .andExpect(jsonPath("$.errorKey").value("FORBIDDEN"));
+    }
+
+    @Test
+    void approveHarvest_shouldReturnApprovedResponseForH02() throws Exception {
+        UUID harvestId = UUID.fromString("33333333-3333-3333-3333-333333333333");
+        HarvestReviewerContext reviewer = new HarvestReviewerContext(
+                "mandor-1",
+                "MANDOR",
+                "Budi Santoso");
+        ApproveHarvestResponse response = new ApproveHarvestResponse(
+                harvestId,
+                HarvestStatus.APPROVED,
+                "Budi Santoso",
+                LocalDateTime.of(2025, 7, 21, 10, 15),
+                "QUEUED");
+
+        when(claimsResolver.resolveMandor("Bearer mandor-token")).thenReturn(reviewer);
+        when(harvestService.approveHarvest(harvestId, reviewer)).thenReturn(response);
+
+        mockMvc.perform(patch("/api/v1/harvests/{harvestId}/approve", harvestId)
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer mandor-token"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.status").value("success"))
+                .andExpect(jsonPath("$.data.id").value(harvestId.toString()))
+                .andExpect(jsonPath("$.data.status").value("APPROVED"))
+                .andExpect(jsonPath("$.data.approvedBy").value("Budi Santoso"))
+                .andExpect(jsonPath("$.data.payrollStatus").value("QUEUED"));
+    }
+
+    @Test
+    void approveHarvest_shouldReturnForbiddenForNonMandor() throws Exception {
+        UUID harvestId = UUID.fromString("44444444-4444-4444-4444-444444444444");
+        when(claimsResolver.resolveMandor("Bearer buruh-token"))
+                .thenThrow(new HarvestAuthorizationException(HarvestErrorKey.FORBIDDEN,
+                        "Caller does not have the MANDOR role"));
+
+        mockMvc.perform(patch("/api/v1/harvests/{harvestId}/approve", harvestId)
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer buruh-token"))
                 .andExpect(status().isForbidden())
                 .andExpect(jsonPath("$.status").value("error"))
                 .andExpect(jsonPath("$.errorKey").value("FORBIDDEN"));
