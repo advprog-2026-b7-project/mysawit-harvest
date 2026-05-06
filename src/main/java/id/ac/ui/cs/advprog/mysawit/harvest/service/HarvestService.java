@@ -12,17 +12,22 @@ import java.util.List;
 import java.util.Set;
 import java.util.UUID;
 
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.http.MediaType;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.transaction.support.TransactionSynchronization;
+import org.springframework.transaction.support.TransactionSynchronizationManager;
 import org.springframework.web.multipart.MultipartFile;
 
 import id.ac.ui.cs.advprog.mysawit.harvest.dto.ApproveHarvestResponse;
 import id.ac.ui.cs.advprog.mysawit.harvest.dto.HarvestCreateRequest;
 import id.ac.ui.cs.advprog.mysawit.harvest.dto.HarvestResponse;
 import id.ac.ui.cs.advprog.mysawit.harvest.error.HarvestErrorKey;
+import id.ac.ui.cs.advprog.mysawit.harvest.event.HarvestApprovedEvent;
 import id.ac.ui.cs.advprog.mysawit.harvest.exception.HarvestAlreadyExistsException;
 import id.ac.ui.cs.advprog.mysawit.harvest.exception.HarvestAuthorizationException;
 import id.ac.ui.cs.advprog.mysawit.harvest.exception.HarvestConflictException;
@@ -51,14 +56,24 @@ public class HarvestService {
 
     private final HarvestRepository harvestRepository;
     private final BuruhMandorAssignmentRepository assignmentRepository;
+    private final ApplicationEventPublisher eventPublisher;
     private final Path storageRoot;
 
+    @Autowired
     public HarvestService(HarvestRepository harvestRepository,
             BuruhMandorAssignmentRepository assignmentRepository,
+            ApplicationEventPublisher eventPublisher,
             @Value("${storage.harvest.dir:uploads/harvests}") String storageDir) {
         this.harvestRepository = harvestRepository;
         this.assignmentRepository = assignmentRepository;
+        this.eventPublisher = eventPublisher;
         this.storageRoot = Paths.get(storageDir).toAbsolutePath().normalize();
+    }
+
+    HarvestService(HarvestRepository harvestRepository,
+            BuruhMandorAssignmentRepository assignmentRepository,
+            String storageDir) {
+        this(harvestRepository, assignmentRepository, null, storageDir);
     }
 
     @Transactional
@@ -125,6 +140,11 @@ public class HarvestService {
         harvest.setReviewedAt(approvedAt);
 
         Harvest saved = harvestRepository.save(harvest);
+        publishHarvestApprovedEvent(new HarvestApprovedEvent(
+                saved.getId(),
+                saved.getBuruhId(),
+                saved.getWeightKg(),
+                approvedAt));
 
         return new ApproveHarvestResponse(
                 saved.getId(),
@@ -151,6 +171,24 @@ public class HarvestService {
         }
 
         return reviewer.userId();
+    }
+
+    private void publishHarvestApprovedEvent(HarvestApprovedEvent event) {
+        if (eventPublisher == null) {
+            return;
+        }
+
+        if (TransactionSynchronizationManager.isSynchronizationActive()) {
+            TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
+                @Override
+                public void afterCommit() {
+                    eventPublisher.publishEvent(event);
+                }
+            });
+            return;
+        }
+
+        eventPublisher.publishEvent(event);
     }
 
     private void validateRequest(HarvestCreateRequest request) {
