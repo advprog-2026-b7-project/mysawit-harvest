@@ -75,6 +75,31 @@ public class HarvestJwtClaimsResolver {
         return new HarvestViewerContext(userId, role.toUpperCase());
     }
 
+    public HarvestReviewerContext resolveMandor(String authorizationHeader) {
+        Map<String, Object> claims = decodeClaims(authorizationHeader);
+
+        String role = firstNonBlank(
+                asString(claims.get("role")),
+                asString(claims.get("roles")));
+
+        if (role == null || !role.equalsIgnoreCase("MANDOR")) {
+            throw new HarvestAuthorizationException(HarvestErrorKey.FORBIDDEN,
+                    "Caller does not have the MANDOR role");
+        }
+
+        String userId = extractUserId(claims);
+        if (userId == null || userId.isBlank()) {
+            throw new HarvestValidationException("JWT is missing a subject/user identifier");
+        }
+
+        String name = firstNonBlank(
+                asString(claims.get("name")),
+                asString(claims.get("fullName")),
+                asString(claims.get("mandorName")));
+
+        return new HarvestReviewerContext(userId, role.toUpperCase(), name);
+    }
+
     private Map<String, Object> decodeClaims(String authorizationHeader) {
         if (authorizationHeader == null || authorizationHeader.isBlank()) {
             throw new HarvestAuthorizationException("Authorization header is required");

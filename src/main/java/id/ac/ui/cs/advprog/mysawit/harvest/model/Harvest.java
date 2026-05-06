@@ -55,8 +55,14 @@ public class Harvest {
     @Column(name = "rejection_reason")
     private String rejectionReason;
 
+    @Column(name = "approved_by")
+    private String approvedBy;
+
     @Column(name = "approved_at")
     private LocalDateTime approvedAt;
+
+    @Column(name = "reviewed_at")
+    private LocalDateTime reviewedAt;
 
     @Column(name = "harvest_date", nullable = false)
     private LocalDate harvestDate;
@@ -155,8 +161,24 @@ public class Harvest {
         return approvedAt;
     }
 
+    public String getApprovedBy() {
+        return approvedBy;
+    }
+
+    public void setApprovedBy(String approvedBy) {
+        this.approvedBy = approvedBy;
+    }
+
     public void setApprovedAt(LocalDateTime approvedAt) {
         this.approvedAt = approvedAt;
+    }
+
+    public LocalDateTime getReviewedAt() {
+        return reviewedAt;
+    }
+
+    public void setReviewedAt(LocalDateTime reviewedAt) {
+        this.reviewedAt = reviewedAt;
     }
 
     public LocalDate getHarvestDate() {
