@@ -199,7 +199,7 @@ public class HarvestHistoryService {
         response.setRejectionReason(harvest.getRejectionReason());
         response.setHarvestDate(harvest.getHarvestDate());
         response.setCreatedAt(harvest.getCreatedAt());
-        response.setReviewedAt(harvest.getApprovedAt());
+        response.setReviewedAt(harvest.getReviewedAt());
         response.setPhotoUrls(harvest.getPhotos().stream().map(photo -> photo.getPhotoUrl()).toList());
         return response;
     }

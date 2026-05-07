@@ -1,0 +1,5 @@
+ALTER TABLE harvests
+    ADD COLUMN IF NOT EXISTS approved_by VARCHAR(255);
+
+ALTER TABLE harvests
+    ADD COLUMN IF NOT EXISTS reviewed_at TIMESTAMP;

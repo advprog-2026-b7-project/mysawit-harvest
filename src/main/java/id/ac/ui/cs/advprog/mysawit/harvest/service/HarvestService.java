@@ -12,18 +12,26 @@ import java.util.List;
 import java.util.Set;
 import java.util.UUID;
 
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.http.MediaType;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.transaction.support.TransactionSynchronization;
+import org.springframework.transaction.support.TransactionSynchronizationManager;
 import org.springframework.web.multipart.MultipartFile;
 
+import id.ac.ui.cs.advprog.mysawit.harvest.dto.ApproveHarvestResponse;
 import id.ac.ui.cs.advprog.mysawit.harvest.dto.HarvestCreateRequest;
 import id.ac.ui.cs.advprog.mysawit.harvest.dto.HarvestResponse;
 import id.ac.ui.cs.advprog.mysawit.harvest.error.HarvestErrorKey;
+import id.ac.ui.cs.advprog.mysawit.harvest.event.HarvestApprovedEvent;
 import id.ac.ui.cs.advprog.mysawit.harvest.exception.HarvestAlreadyExistsException;
 import id.ac.ui.cs.advprog.mysawit.harvest.exception.HarvestAuthorizationException;
+import id.ac.ui.cs.advprog.mysawit.harvest.exception.HarvestConflictException;
+import id.ac.ui.cs.advprog.mysawit.harvest.exception.HarvestNotFoundException;
 import id.ac.ui.cs.advprog.mysawit.harvest.exception.HarvestStorageException;
 import id.ac.ui.cs.advprog.mysawit.harvest.exception.HarvestValidationException;
 import id.ac.ui.cs.advprog.mysawit.harvest.model.BuruhMandorAssignment;
@@ -32,6 +40,7 @@ import id.ac.ui.cs.advprog.mysawit.harvest.model.HarvestPhoto;
 import id.ac.ui.cs.advprog.mysawit.harvest.model.HarvestStatus;
 import id.ac.ui.cs.advprog.mysawit.harvest.repository.BuruhMandorAssignmentRepository;
 import id.ac.ui.cs.advprog.mysawit.harvest.repository.HarvestRepository;
+import id.ac.ui.cs.advprog.mysawit.harvest.security.HarvestReviewerContext;
 import id.ac.ui.cs.advprog.mysawit.harvest.security.HarvestSubmissionContext;
 
 @Service
@@ -47,14 +56,24 @@ public class HarvestService {
 
     private final HarvestRepository harvestRepository;
     private final BuruhMandorAssignmentRepository assignmentRepository;
+    private final ApplicationEventPublisher eventPublisher;
     private final Path storageRoot;
 
+    @Autowired
     public HarvestService(HarvestRepository harvestRepository,
             BuruhMandorAssignmentRepository assignmentRepository,
+            ApplicationEventPublisher eventPublisher,
             @Value("${storage.harvest.dir:uploads/harvests}") String storageDir) {
         this.harvestRepository = harvestRepository;
         this.assignmentRepository = assignmentRepository;
+        this.eventPublisher = eventPublisher;
         this.storageRoot = Paths.get(storageDir).toAbsolutePath().normalize();
+    }
+
+    HarvestService(HarvestRepository harvestRepository,
+            BuruhMandorAssignmentRepository assignmentRepository,
+            String storageDir) {
+        this(harvestRepository, assignmentRepository, null, storageDir);
     }
 
     @Transactional
@@ -88,6 +107,88 @@ public class HarvestService {
         } catch (DataIntegrityViolationException ex) {
             throw new HarvestAlreadyExistsException("Harvest for today already submitted");
         }
+    }
+
+    @Transactional
+    public ApproveHarvestResponse approveHarvest(UUID harvestId, HarvestReviewerContext reviewer) {
+        validateReviewerContext(reviewer);
+
+        Harvest harvest = harvestRepository.findByIdForUpdate(harvestId)
+                .orElseThrow(() -> new HarvestNotFoundException(HarvestErrorKey.HARVEST_NOT_FOUND,
+                        "No harvest found with the given harvestId"));
+
+        if (harvest.getStatus() != HarvestStatus.PENDING) {
+            throw new HarvestConflictException(HarvestErrorKey.HARVEST_ALREADY_REVIEWED,
+                    "Harvest has already been approved or rejected");
+        }
+
+        BuruhMandorAssignment assignment = assignmentRepository.findByBuruhId(harvest.getBuruhId())
+                .orElseThrow(() -> new HarvestAuthorizationException(HarvestErrorKey.MANDOR_NOT_AUTHORIZED,
+                        "Authenticated mandor does not supervise this buruh"));
+
+        if (!reviewer.userId().equals(assignment.getMandorId())) {
+            throw new HarvestAuthorizationException(HarvestErrorKey.MANDOR_NOT_AUTHORIZED,
+                    "Authenticated mandor does not supervise this buruh");
+        }
+
+        java.time.LocalDateTime approvedAt = java.time.LocalDateTime.now(JAKARTA_ZONE);
+        String approvedBy = resolveReviewerName(reviewer);
+
+        harvest.setStatus(HarvestStatus.APPROVED);
+        harvest.setApprovedBy(approvedBy);
+        harvest.setApprovedAt(approvedAt);
+        harvest.setReviewedAt(approvedAt);
+
+        Harvest saved = harvestRepository.save(harvest);
+        publishHarvestApprovedEvent(new HarvestApprovedEvent(
+                saved.getId(),
+                saved.getBuruhId(),
+                saved.getWeightKg(),
+                approvedAt));
+
+        return new ApproveHarvestResponse(
+                saved.getId(),
+                saved.getStatus(),
+                saved.getApprovedBy(),
+                saved.getApprovedAt(),
+                "QUEUED");
+    }
+
+    private void validateReviewerContext(HarvestReviewerContext reviewer) {
+        if (reviewer == null || reviewer.userId() == null || reviewer.userId().isBlank()) {
+            throw new HarvestAuthorizationException("Invalid authenticated mandor context");
+        }
+
+        if (reviewer.role() == null || !reviewer.role().equalsIgnoreCase("MANDOR")) {
+            throw new HarvestAuthorizationException(HarvestErrorKey.FORBIDDEN,
+                    "Caller does not have the MANDOR role");
+        }
+    }
+
+    private String resolveReviewerName(HarvestReviewerContext reviewer) {
+        if (reviewer.name() != null && !reviewer.name().isBlank()) {
+            return reviewer.name();
+        }
+
+        return reviewer.userId();
+    }
+
+    private void publishHarvestApprovedEvent(HarvestApprovedEvent event) {
+        if (eventPublisher == null) {
+            return;
+        }
+
+        if (TransactionSynchronizationManager.isSynchronizationActive()) {
+            TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
+                @Override
+                public void afterCommit() {
+                    eventPublisher.publishEvent(event);
+                }
+            });
+            return;
+        }
+
+        eventPublisher.publishEvent(event);
     }
 
     private void validateRequest(HarvestCreateRequest request) {
@@ -241,7 +342,7 @@ public class HarvestService {
         response.setRejectionReason(harvest.getRejectionReason());
         response.setHarvestDate(harvest.getHarvestDate());
         response.setCreatedAt(harvest.getCreatedAt());
-        response.setReviewedAt(harvest.getApprovedAt());
+        response.setReviewedAt(harvest.getReviewedAt());
 
         List<String> photoUrls = new ArrayList<>();
         harvest.getPhotos().forEach(photo -> photoUrls.add(photo.getPhotoUrl()));

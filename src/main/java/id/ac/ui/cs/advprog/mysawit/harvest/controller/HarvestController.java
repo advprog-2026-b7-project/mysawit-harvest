@@ -2,6 +2,7 @@ package id.ac.ui.cs.advprog.mysawit.harvest.controller;
 
 import java.time.LocalDate;
 import java.util.List;
+import java.util.UUID;
 
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.web.PageableDefault;
@@ -13,6 +14,8 @@ import org.springframework.validation.annotation.Validated;
 import org.springframework.web.bind.annotation.CrossOrigin;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.ModelAttribute;
+import org.springframework.web.bind.annotation.PatchMapping;
+import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RequestHeader;
@@ -22,6 +25,7 @@ import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.multipart.MultipartFile;
 
 import id.ac.ui.cs.advprog.mysawit.harvest.dto.ApiSuccessResponse;
+import id.ac.ui.cs.advprog.mysawit.harvest.dto.ApproveHarvestResponse;
 import id.ac.ui.cs.advprog.mysawit.harvest.dto.HarvestCreateRequest;
 import id.ac.ui.cs.advprog.mysawit.harvest.dto.HarvestPageResponse;
 import id.ac.ui.cs.advprog.mysawit.harvest.dto.HarvestResponse;
@@ -75,6 +79,17 @@ public class HarvestController {
                 status,
                 buruhName,
                 pageable);
+
+        return ResponseEntity.ok(new ApiSuccessResponse<>("success", response));
+    }
+
+    @PatchMapping(value = "/{harvestId}/approve", produces = MediaType.APPLICATION_JSON_VALUE)
+    public ResponseEntity<ApiSuccessResponse<ApproveHarvestResponse>> approveHarvest(
+            @PathVariable UUID harvestId,
+            @RequestHeader(HttpHeaders.AUTHORIZATION) String authorization) {
+        ApproveHarvestResponse response = harvestService.approveHarvest(
+                harvestId,
+                claimsResolver.resolveMandor(authorization));
 
         return ResponseEntity.ok(new ApiSuccessResponse<>("success", response));
     }
