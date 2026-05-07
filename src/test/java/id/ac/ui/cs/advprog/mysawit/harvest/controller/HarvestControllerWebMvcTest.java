@@ -27,6 +27,8 @@ import id.ac.ui.cs.advprog.mysawit.harvest.dto.HarvestPageResponse;
 import id.ac.ui.cs.advprog.mysawit.harvest.dto.HarvestResponse;
 import id.ac.ui.cs.advprog.mysawit.harvest.error.HarvestErrorKey;
 import id.ac.ui.cs.advprog.mysawit.harvest.exception.HarvestAuthorizationException;
+import id.ac.ui.cs.advprog.mysawit.harvest.exception.HarvestConflictException;
+import id.ac.ui.cs.advprog.mysawit.harvest.exception.HarvestNotFoundException;
 import id.ac.ui.cs.advprog.mysawit.harvest.model.HarvestStatus;
 import id.ac.ui.cs.advprog.mysawit.harvest.security.HarvestJwtClaimsResolver;
 import id.ac.ui.cs.advprog.mysawit.harvest.security.HarvestReviewerContext;
@@ -134,6 +136,7 @@ class HarvestControllerWebMvcTest {
                 .andExpect(jsonPath("$.data.id").value(harvestId.toString()))
                 .andExpect(jsonPath("$.data.status").value("APPROVED"))
                 .andExpect(jsonPath("$.data.approvedBy").value("Budi Santoso"))
+                .andExpect(jsonPath("$.data.approvedAt").value("2025-07-21T10:15:00"))
                 .andExpect(jsonPath("$.data.payrollStatus").value("QUEUED"));
     }
 
@@ -149,5 +152,84 @@ class HarvestControllerWebMvcTest {
                 .andExpect(status().isForbidden())
                 .andExpect(jsonPath("$.status").value("error"))
                 .andExpect(jsonPath("$.errorKey").value("FORBIDDEN"));
+    }
+
+    @Test
+    void approveHarvest_shouldReturnForbiddenForNonSupervisingMandor() throws Exception {
+        UUID harvestId = UUID.fromString("55555555-5555-5555-5555-555555555555");
+        HarvestReviewerContext reviewer = mandorReviewer();
+
+        when(claimsResolver.resolveMandor("Bearer mandor-token")).thenReturn(reviewer);
+        when(harvestService.approveHarvest(harvestId, reviewer))
+                .thenThrow(new HarvestAuthorizationException(
+                        HarvestErrorKey.MANDOR_NOT_AUTHORIZED,
+                        "Authenticated mandor does not supervise this buruh"));
+
+        mockMvc.perform(patch("/api/v1/harvests/{harvestId}/approve", harvestId)
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer mandor-token"))
+                .andExpect(status().isForbidden())
+                .andExpect(jsonPath("$.status").value("error"))
+                .andExpect(jsonPath("$.errorKey").value("MANDOR_NOT_AUTHORIZED"));
+    }
+
+    @Test
+    void approveHarvest_shouldReturnNotFoundWhenHarvestIsMissing() throws Exception {
+        UUID harvestId = UUID.fromString("66666666-6666-6666-6666-666666666666");
+        HarvestReviewerContext reviewer = mandorReviewer();
+
+        when(claimsResolver.resolveMandor("Bearer mandor-token")).thenReturn(reviewer);
+        when(harvestService.approveHarvest(harvestId, reviewer))
+                .thenThrow(new HarvestNotFoundException(
+                        HarvestErrorKey.HARVEST_NOT_FOUND,
+                        "No harvest found with the given harvestId"));
+
+        mockMvc.perform(patch("/api/v1/harvests/{harvestId}/approve", harvestId)
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer mandor-token"))
+                .andExpect(status().isNotFound())
+                .andExpect(jsonPath("$.status").value("error"))
+                .andExpect(jsonPath("$.errorKey").value("HARVEST_NOT_FOUND"));
+    }
+
+    @Test
+    void approveHarvest_shouldReturnConflictWhenAlreadyApproved() throws Exception {
+        UUID harvestId = UUID.fromString("77777777-7777-7777-7777-777777777777");
+        HarvestReviewerContext reviewer = mandorReviewer();
+
+        when(claimsResolver.resolveMandor("Bearer mandor-token")).thenReturn(reviewer);
+        when(harvestService.approveHarvest(harvestId, reviewer))
+                .thenThrow(new HarvestConflictException(
+                        HarvestErrorKey.HARVEST_ALREADY_REVIEWED,
+                        "Harvest has already been approved or rejected"));
+
+        mockMvc.perform(patch("/api/v1/harvests/{harvestId}/approve", harvestId)
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer mandor-token"))
+                .andExpect(status().isConflict())
+                .andExpect(jsonPath("$.status").value("error"))
+                .andExpect(jsonPath("$.errorKey").value("HARVEST_ALREADY_REVIEWED"));
+    }
+
+    @Test
+    void approveHarvest_shouldReturnConflictWhenAlreadyRejected() throws Exception {
+        UUID harvestId = UUID.fromString("88888888-8888-8888-8888-888888888888");
+        HarvestReviewerContext reviewer = mandorReviewer();
+
+        when(claimsResolver.resolveMandor("Bearer mandor-token")).thenReturn(reviewer);
+        when(harvestService.approveHarvest(harvestId, reviewer))
+                .thenThrow(new HarvestConflictException(
+                        HarvestErrorKey.HARVEST_ALREADY_REVIEWED,
+                        "Harvest has already been approved or rejected"));
+
+        mockMvc.perform(patch("/api/v1/harvests/{harvestId}/approve", harvestId)
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer mandor-token"))
+                .andExpect(status().isConflict())
+                .andExpect(jsonPath("$.status").value("error"))
+                .andExpect(jsonPath("$.errorKey").value("HARVEST_ALREADY_REVIEWED"));
+    }
+
+    private HarvestReviewerContext mandorReviewer() {
+        return new HarvestReviewerContext(
+                "mandor-1",
+                "MANDOR",
+                "Budi Santoso");
     }
 }
