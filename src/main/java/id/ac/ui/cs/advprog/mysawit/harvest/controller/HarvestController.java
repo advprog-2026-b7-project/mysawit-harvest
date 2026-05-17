@@ -52,7 +52,9 @@ public class HarvestController {
         this.claimsResolver = claimsResolver;
     }
 
-    @PostMapping(consumes = MediaType.MULTIPART_FORM_DATA_VALUE, produces = MediaType.APPLICATION_JSON_VALUE)
+    @PostMapping(
+            consumes = MediaType.MULTIPART_FORM_DATA_VALUE,
+            produces = MediaType.APPLICATION_JSON_VALUE)
     public ResponseEntity<HarvestResponse> createHarvest(
             @Valid @ModelAttribute HarvestCreateRequest request,
             @RequestPart(value = "photos", required = false) List<MultipartFile> photos,

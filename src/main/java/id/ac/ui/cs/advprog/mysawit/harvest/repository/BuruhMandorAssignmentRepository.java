@@ -9,7 +9,8 @@ import org.springframework.data.repository.query.Param;
 
 import id.ac.ui.cs.advprog.mysawit.harvest.model.BuruhMandorAssignment;
 
-public interface BuruhMandorAssignmentRepository extends JpaRepository<BuruhMandorAssignment, String> {
+public interface BuruhMandorAssignmentRepository
+        extends JpaRepository<BuruhMandorAssignment, String> {
     Optional<BuruhMandorAssignment> findByBuruhId(String buruhId);
     boolean existsByMandorId(String mandorId);
 

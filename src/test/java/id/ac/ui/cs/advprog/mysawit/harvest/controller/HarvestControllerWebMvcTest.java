@@ -101,7 +101,9 @@ class HarvestControllerWebMvcTest {
                 any(),
                 any(),
                 any(Pageable.class)))
-                .thenThrow(new HarvestAuthorizationException(HarvestErrorKey.FORBIDDEN, "Access denied"));
+                .thenThrow(new HarvestAuthorizationException(
+                        HarvestErrorKey.FORBIDDEN,
+                        "Access denied"));
 
         mockMvc.perform(get("/api/v1/harvests")
                         .header(HttpHeaders.AUTHORIZATION, "Bearer denied-token"))

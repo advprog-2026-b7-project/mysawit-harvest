@@ -10,7 +10,11 @@ public class HarvestPageResponse {
     private long totalElements;
     private int totalPages;
 
-    public HarvestPageResponse(List<HarvestResponse> content, int page, int size, long totalElements, int totalPages) {
+    public HarvestPageResponse(List<HarvestResponse> content,
+            int page,
+            int size,
+            long totalElements,
+            int totalPages) {
         this.content = content;
         this.page = page;
         this.size = size;

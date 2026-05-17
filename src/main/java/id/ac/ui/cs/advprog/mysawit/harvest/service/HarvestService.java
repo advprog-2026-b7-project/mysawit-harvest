@@ -122,8 +122,10 @@ public class HarvestService {
                     "Harvest has already been approved or rejected");
         }
 
-        BuruhMandorAssignment assignment = assignmentRepository.findByBuruhId(harvest.getBuruhId())
-                .orElseThrow(() -> new HarvestAuthorizationException(HarvestErrorKey.MANDOR_NOT_AUTHORIZED,
+        BuruhMandorAssignment assignment = assignmentRepository.findByBuruhId(
+                        harvest.getBuruhId())
+                .orElseThrow(() -> new HarvestAuthorizationException(
+                        HarvestErrorKey.MANDOR_NOT_AUTHORIZED,
                         "Authenticated mandor does not supervise this buruh"));
 
         if (!reviewer.userId().equals(assignment.getMandorId())) {
@@ -179,7 +181,8 @@ public class HarvestService {
         }
 
         if (TransactionSynchronizationManager.isSynchronizationActive()) {
-            TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
+            TransactionSynchronizationManager.registerSynchronization(
+                    new TransactionSynchronization() {
                 @Override
                 public void afterCommit() {
                     eventPublisher.publishEvent(event);
@@ -192,7 +195,9 @@ public class HarvestService {
     }
 
     private void validateRequest(HarvestCreateRequest request) {
-        if (request == null || request.getWeightKg() == null || request.getWeightKg().signum() <= 0) {
+        if (request == null
+                || request.getWeightKg() == null
+                || request.getWeightKg().signum() <= 0) {
             throw new HarvestValidationException("weightKg must be greater than 0");
         }
 
@@ -207,16 +212,20 @@ public class HarvestService {
         }
 
         if (context.role() == null || !context.role().equalsIgnoreCase("BURUH")) {
-            throw new HarvestAuthorizationException(HarvestErrorKey.FORBIDDEN, "Caller does not have the BURUH role");
+            throw new HarvestAuthorizationException(HarvestErrorKey.FORBIDDEN,
+                    "Caller does not have the BURUH role");
         }
 
         return assignmentRepository.findByBuruhId(context.buruhId())
-                .filter(assignment -> assignment.getMandorId() != null && !assignment.getMandorId().isBlank())
-                .orElseThrow(() -> new HarvestAuthorizationException(HarvestErrorKey.BURUH_NOT_ASSIGNED_TO_MANDOR,
+                .filter(assignment -> assignment.getMandorId() != null
+                        && !assignment.getMandorId().isBlank())
+                .orElseThrow(() -> new HarvestAuthorizationException(
+                        HarvestErrorKey.BURUH_NOT_ASSIGNED_TO_MANDOR,
                         "Buruh is not assigned to a mandor"));
     }
 
-    private String resolveBuruhName(HarvestSubmissionContext context, BuruhMandorAssignment assignment) {
+    private String resolveBuruhName(HarvestSubmissionContext context,
+            BuruhMandorAssignment assignment) {
         if (assignment.getBuruhName() != null && !assignment.getBuruhName().isBlank()) {
             return assignment.getBuruhName();
         }
@@ -232,7 +241,8 @@ public class HarvestService {
         return "Unknown Buruh";
     }
 
-    private String resolvePlantationId(HarvestSubmissionContext context, BuruhMandorAssignment assignment) {
+    private String resolvePlantationId(HarvestSubmissionContext context,
+            BuruhMandorAssignment assignment) {
         if (assignment.getPlantationId() != null && !assignment.getPlantationId().isBlank()) {
             return assignment.getPlantationId();
         }
@@ -244,7 +254,8 @@ public class HarvestService {
         return "UNSPECIFIED";
     }
 
-    private void validateContextCompatibility(HarvestSubmissionContext context, BuruhMandorAssignment assignment) {
+    private void validateContextCompatibility(HarvestSubmissionContext context,
+            BuruhMandorAssignment assignment) {
         if (context.plantationId() != null
                 && !context.plantationId().isBlank()
                 && assignment.getPlantationId() != null
@@ -257,7 +268,8 @@ public class HarvestService {
 
     private void validatePhotos(List<MultipartFile> photos) {
         if (photos == null || photos.stream().allMatch(photo -> photo == null || photo.isEmpty())) {
-            throw new HarvestValidationException(HarvestErrorKey.NO_PHOTOS_PROVIDED, "At least one photo is required");
+            throw new HarvestValidationException(HarvestErrorKey.NO_PHOTOS_PROVIDED,
+                    "At least one photo is required");
         }
 
         long nonEmptyCount = photos.stream()

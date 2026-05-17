@@ -30,7 +30,8 @@ public class UserHarvestController {
     private final HarvestHistoryService harvestHistoryService;
     private final HarvestJwtClaimsResolver claimsResolver;
 
-    public UserHarvestController(HarvestHistoryService harvestHistoryService, HarvestJwtClaimsResolver claimsResolver) {
+    public UserHarvestController(HarvestHistoryService harvestHistoryService,
+            HarvestJwtClaimsResolver claimsResolver) {
         this.harvestHistoryService = harvestHistoryService;
         this.claimsResolver = claimsResolver;
     }

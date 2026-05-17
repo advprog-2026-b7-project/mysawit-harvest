@@ -49,7 +49,8 @@ public class HarvestExceptionHandler {
             status = HttpStatus.FORBIDDEN;
         }
 
-        if (ex instanceof BindException bindException && bindException.getBindingResult().hasErrors()) {
+        if (ex instanceof BindException bindException
+                && bindException.getBindingResult().hasErrors()) {
             message = bindException.getBindingResult().getAllErrors().get(0).getDefaultMessage();
         }
 

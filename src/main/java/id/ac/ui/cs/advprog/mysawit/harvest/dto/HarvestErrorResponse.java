@@ -11,7 +11,10 @@ public class HarvestErrorResponse {
     private String message;
     private Instant timestamp;
 
-    public HarvestErrorResponse(String status, HarvestErrorKey errorKey, String message, Instant timestamp) {
+    public HarvestErrorResponse(String status,
+            HarvestErrorKey errorKey,
+            String message,
+            Instant timestamp) {
         this.status = status;
         this.errorKey = errorKey;
         this.message = message;

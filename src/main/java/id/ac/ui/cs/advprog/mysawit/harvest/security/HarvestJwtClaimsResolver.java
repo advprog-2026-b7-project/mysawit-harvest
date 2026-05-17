@@ -31,7 +31,8 @@ public class HarvestJwtClaimsResolver {
                 asString(claims.get("roles")));
 
         if (role == null || !role.equalsIgnoreCase("BURUH")) {
-            throw new HarvestAuthorizationException(HarvestErrorKey.FORBIDDEN, "Caller does not have the BURUH role");
+            throw new HarvestAuthorizationException(HarvestErrorKey.FORBIDDEN,
+                    "Caller does not have the BURUH role");
         }
 
         String buruhId = extractUserId(claims);
@@ -134,8 +135,10 @@ public class HarvestJwtClaimsResolver {
 
         try {
             byte[] payloadBytes = Base64.getUrlDecoder().decode(parts[1]);
-            return objectMapper.readValue(new String(payloadBytes, StandardCharsets.UTF_8), new TypeReference<Map<String, Object>>() {
-            });
+            return objectMapper.readValue(
+                    new String(payloadBytes, StandardCharsets.UTF_8),
+                    new TypeReference<Map<String, Object>>() {
+                    });
         } catch (java.io.IOException ex) {
             throw new HarvestAuthorizationException("Unable to decode JWT claims");
         } catch (IllegalArgumentException ex) {
