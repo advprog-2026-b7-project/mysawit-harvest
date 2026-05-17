@@ -68,14 +68,21 @@ class HarvestServiceTest {
 
     @BeforeEach
     void setUp() {
-        harvestService = new HarvestService(harvestRepository, assignmentRepository, tempDir.toString());
+        harvestService = new HarvestService(
+                harvestRepository,
+                assignmentRepository,
+                tempDir.toString());
     }
 
     @Test
     void createHarvest_shouldPersistValidSubmission() {
-        when(assignmentRepository.findByBuruhId("buruh-1")).thenReturn(java.util.Optional.of(validAssignment()));
-        when(harvestRepository.existsByBuruhIdAndHarvestDate("buruh-1", LocalDate.now(JAKARTA_ZONE))).thenReturn(false);
-        when(harvestRepository.save(any(Harvest.class))).thenAnswer(invocation -> invocation.getArgument(0));
+        when(assignmentRepository.findByBuruhId("buruh-1"))
+                .thenReturn(Optional.of(validAssignment()));
+        when(harvestRepository.existsByBuruhIdAndHarvestDate(
+                "buruh-1",
+                LocalDate.now(JAKARTA_ZONE))).thenReturn(false);
+        when(harvestRepository.save(any(Harvest.class)))
+                .thenAnswer(invocation -> invocation.getArgument(0));
 
         HarvestCreateRequest request = new HarvestCreateRequest();
         request.setWeightKg(new BigDecimal("350.5"));
@@ -89,7 +96,7 @@ class HarvestServiceTest {
 
         HarvestResponse response = harvestService.createHarvest(
                 request,
-                new HarvestSubmissionContext("buruh-1", "Slamet Raharjo", "plantation-1", "BURUH"),
+                validSubmissionContext(),
                 List.of(photo));
 
         assertEquals("buruh-1", response.getBuruhId());
@@ -103,19 +110,27 @@ class HarvestServiceTest {
 
     @Test
     void createHarvest_shouldRejectDuplicateSubmissionForDay() {
-        when(assignmentRepository.findByBuruhId("buruh-1")).thenReturn(java.util.Optional.of(validAssignment()));
-        when(harvestRepository.existsByBuruhIdAndHarvestDate("buruh-1", LocalDate.now(JAKARTA_ZONE))).thenReturn(true);
+        when(assignmentRepository.findByBuruhId("buruh-1"))
+                .thenReturn(Optional.of(validAssignment()));
+        when(harvestRepository.existsByBuruhIdAndHarvestDate(
+                "buruh-1",
+                LocalDate.now(JAKARTA_ZONE))).thenReturn(true);
 
         HarvestCreateRequest request = new HarvestCreateRequest();
         request.setWeightKg(new BigDecimal("100"));
         request.setNotes("Valid notes");
 
-        MockMultipartFile photo = new MockMultipartFile("photos", "foto1.jpg", "image/jpeg", new byte[] {1});
+        MockMultipartFile photo = new MockMultipartFile(
+                "photos",
+                "foto1.jpg",
+                "image/jpeg",
+                new byte[] {1});
 
-        HarvestAlreadyExistsException exception = assertThrows(HarvestAlreadyExistsException.class, () ->
+        HarvestAlreadyExistsException exception = assertThrows(
+                HarvestAlreadyExistsException.class, () ->
                 harvestService.createHarvest(
                         request,
-                        new HarvestSubmissionContext("buruh-1", "Slamet Raharjo", "plantation-1", "BURUH"),
+                        validSubmissionContext(),
                         List.of(photo)));
 
         assertEquals(HarvestErrorKey.HARVEST_ALREADY_SUBMITTED_TODAY, exception.getErrorKey());
@@ -123,7 +138,8 @@ class HarvestServiceTest {
 
     @Test
     void createHarvest_shouldRejectMissingPhotos() {
-        when(assignmentRepository.findByBuruhId("buruh-1")).thenReturn(java.util.Optional.of(validAssignment()));
+        when(assignmentRepository.findByBuruhId("buruh-1"))
+                .thenReturn(Optional.of(validAssignment()));
         HarvestCreateRequest request = new HarvestCreateRequest();
         request.setWeightKg(new BigDecimal("100"));
         request.setNotes("Valid notes");
@@ -131,7 +147,7 @@ class HarvestServiceTest {
         HarvestValidationException exception = assertThrows(HarvestValidationException.class, () ->
                 harvestService.createHarvest(
                         request,
-                        new HarvestSubmissionContext("buruh-1", "Slamet Raharjo", "plantation-1", "BURUH"),
+                        validSubmissionContext(),
                         List.of()));
 
         assertEquals(HarvestErrorKey.NO_PHOTOS_PROVIDED, exception.getErrorKey());
@@ -139,17 +155,22 @@ class HarvestServiceTest {
 
     @Test
     void createHarvest_shouldRejectInvalidPhotoType() {
-        when(assignmentRepository.findByBuruhId("buruh-1")).thenReturn(java.util.Optional.of(validAssignment()));
+        when(assignmentRepository.findByBuruhId("buruh-1"))
+                .thenReturn(Optional.of(validAssignment()));
         HarvestCreateRequest request = new HarvestCreateRequest();
         request.setWeightKg(new BigDecimal("100"));
         request.setNotes("Valid notes");
 
-        MockMultipartFile photo = new MockMultipartFile("photos", "bad.txt", "text/plain", new byte[] {1});
+        MockMultipartFile photo = new MockMultipartFile(
+                "photos",
+                "bad.txt",
+                "text/plain",
+                new byte[] {1});
 
         HarvestValidationException exception = assertThrows(HarvestValidationException.class, () ->
                 harvestService.createHarvest(
                         request,
-                        new HarvestSubmissionContext("buruh-1", "Slamet Raharjo", "plantation-1", "BURUH"),
+                        validSubmissionContext(),
                         List.of(photo)));
 
         assertEquals(HarvestErrorKey.INVALID_PHOTO_TYPE, exception.getErrorKey());
@@ -157,7 +178,8 @@ class HarvestServiceTest {
 
     @Test
     void createHarvest_shouldRejectOversizedPhoto() {
-        when(assignmentRepository.findByBuruhId("buruh-1")).thenReturn(java.util.Optional.of(validAssignment()));
+        when(assignmentRepository.findByBuruhId("buruh-1"))
+                .thenReturn(Optional.of(validAssignment()));
         HarvestCreateRequest request = new HarvestCreateRequest();
         request.setWeightKg(new BigDecimal("100"));
         request.setNotes("Valid notes");
@@ -168,7 +190,7 @@ class HarvestServiceTest {
         HarvestValidationException exception = assertThrows(HarvestValidationException.class, () ->
                 harvestService.createHarvest(
                         request,
-                        new HarvestSubmissionContext("buruh-1", "Slamet Raharjo", "plantation-1", "BURUH"),
+                        validSubmissionContext(),
                         List.of(photo)));
 
         assertEquals(HarvestErrorKey.PHOTO_TOO_LARGE, exception.getErrorKey());
@@ -182,12 +204,17 @@ class HarvestServiceTest {
         request.setWeightKg(new BigDecimal("100"));
         request.setNotes("Valid notes");
 
-        MockMultipartFile photo = new MockMultipartFile("photos", "foto1.jpg", "image/jpeg", new byte[] {1});
+        MockMultipartFile photo = new MockMultipartFile(
+                "photos",
+                "foto1.jpg",
+                "image/jpeg",
+                new byte[] {1});
 
-        HarvestAuthorizationException exception = assertThrows(HarvestAuthorizationException.class, () ->
+        HarvestAuthorizationException exception = assertThrows(
+                HarvestAuthorizationException.class, () ->
                 harvestService.createHarvest(
                         request,
-                        new HarvestSubmissionContext("buruh-1", "Slamet Raharjo", "plantation-1", "BURUH"),
+                        validSubmissionContext(),
                         List.of(photo)));
 
         assertEquals(HarvestErrorKey.BURUH_NOT_ASSIGNED_TO_MANDOR, exception.getErrorKey());
@@ -199,8 +226,10 @@ class HarvestServiceTest {
         Harvest harvest = pendingHarvest(harvestId);
 
         when(harvestRepository.findByIdForUpdate(harvestId)).thenReturn(Optional.of(harvest));
-        when(assignmentRepository.findByBuruhId("buruh-1")).thenReturn(Optional.of(validAssignment()));
-        when(harvestRepository.save(any(Harvest.class))).thenAnswer(invocation -> invocation.getArgument(0));
+        when(assignmentRepository.findByBuruhId("buruh-1"))
+                .thenReturn(Optional.of(validAssignment()));
+        when(harvestRepository.save(any(Harvest.class)))
+                .thenAnswer(invocation -> invocation.getArgument(0));
 
         ApproveHarvestResponse response = harvestService.approveHarvest(
                 harvestId,
@@ -225,7 +254,8 @@ class HarvestServiceTest {
         when(harvestRepository.findByIdForUpdate(harvestId)).thenReturn(Optional.of(harvest));
         when(assignmentRepository.findByBuruhId("buruh-1")).thenReturn(Optional.of(assignment));
 
-        HarvestAuthorizationException exception = assertThrows(HarvestAuthorizationException.class, () ->
+        HarvestAuthorizationException exception = assertThrows(
+                HarvestAuthorizationException.class, () ->
                 harvestService.approveHarvest(
                         harvestId,
                         new HarvestReviewerContext("mandor-1", "MANDOR", "Budi Santoso")));
@@ -238,7 +268,8 @@ class HarvestServiceTest {
     void approveHarvest_shouldRejectNonMandorRole() {
         UUID harvestId = UUID.fromString("33333333-3333-3333-3333-333333333333");
 
-        HarvestAuthorizationException exception = assertThrows(HarvestAuthorizationException.class, () ->
+        HarvestAuthorizationException exception = assertThrows(
+                HarvestAuthorizationException.class, () ->
                 harvestService.approveHarvest(
                         harvestId,
                         new HarvestReviewerContext("buruh-1", "BURUH", "Slamet Raharjo")));
@@ -299,15 +330,19 @@ class HarvestServiceTest {
                 eventPublisher,
                 tempDir.toString());
 
-        when(harvestRepository.findByIdForUpdate(harvestId)).thenReturn(Optional.of(pendingHarvest(harvestId)));
-        when(assignmentRepository.findByBuruhId("buruh-1")).thenReturn(Optional.of(validAssignment()));
-        when(harvestRepository.save(any(Harvest.class))).thenAnswer(invocation -> invocation.getArgument(0));
+        when(harvestRepository.findByIdForUpdate(harvestId))
+                .thenReturn(Optional.of(pendingHarvest(harvestId)));
+        when(assignmentRepository.findByBuruhId("buruh-1"))
+                .thenReturn(Optional.of(validAssignment()));
+        when(harvestRepository.save(any(Harvest.class)))
+                .thenAnswer(invocation -> invocation.getArgument(0));
 
         serviceWithEvents.approveHarvest(
                 harvestId,
                 new HarvestReviewerContext("mandor-1", "MANDOR", "Budi Santoso"));
 
-        ArgumentCaptor<HarvestApprovedEvent> eventCaptor = ArgumentCaptor.forClass(HarvestApprovedEvent.class);
+        ArgumentCaptor<HarvestApprovedEvent> eventCaptor = ArgumentCaptor.forClass(
+                HarvestApprovedEvent.class);
         verify(eventPublisher).publishEvent(eventCaptor.capture());
 
         HarvestApprovedEvent event = eventCaptor.getValue();
@@ -326,9 +361,12 @@ class HarvestServiceTest {
                 eventPublisher,
                 tempDir.toString());
 
-        when(harvestRepository.findByIdForUpdate(harvestId)).thenReturn(Optional.of(pendingHarvest(harvestId)));
-        when(assignmentRepository.findByBuruhId("buruh-1")).thenReturn(Optional.of(validAssignment()));
-        when(harvestRepository.save(any(Harvest.class))).thenAnswer(invocation -> invocation.getArgument(0));
+        when(harvestRepository.findByIdForUpdate(harvestId))
+                .thenReturn(Optional.of(pendingHarvest(harvestId)));
+        when(assignmentRepository.findByBuruhId("buruh-1"))
+                .thenReturn(Optional.of(validAssignment()));
+        when(harvestRepository.save(any(Harvest.class)))
+                .thenAnswer(invocation -> invocation.getArgument(0));
 
         TransactionSynchronizationManager.initSynchronization();
         try {
@@ -338,7 +376,8 @@ class HarvestServiceTest {
 
             verify(eventPublisher, never()).publishEvent(any(HarvestApprovedEvent.class));
 
-            for (TransactionSynchronization synchronization : TransactionSynchronizationManager.getSynchronizations()) {
+            for (TransactionSynchronization synchronization
+                    : TransactionSynchronizationManager.getSynchronizations()) {
                 synchronization.afterCommit();
             }
 
@@ -355,6 +394,14 @@ class HarvestServiceTest {
         assignment.setBuruhName("Slamet Raharjo");
         assignment.setPlantationId("plantation-1");
         return assignment;
+    }
+
+    private HarvestSubmissionContext validSubmissionContext() {
+        return new HarvestSubmissionContext(
+                "buruh-1",
+                "Slamet Raharjo",
+                "plantation-1",
+                "BURUH");
     }
 
     private Harvest pendingHarvest(UUID harvestId) {

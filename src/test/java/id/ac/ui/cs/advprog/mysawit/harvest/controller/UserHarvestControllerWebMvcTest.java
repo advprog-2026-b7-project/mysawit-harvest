@@ -92,7 +92,9 @@ class UserHarvestControllerWebMvcTest {
                 any(),
                 any(),
                 any(Pageable.class)))
-                .thenThrow(new HarvestNotFoundException(HarvestErrorKey.USER_NOT_FOUND, "User not found"));
+                .thenThrow(new HarvestNotFoundException(
+                        HarvestErrorKey.USER_NOT_FOUND,
+                        "User not found"));
 
         mockMvc.perform(get("/api/v1/users/{buruhId}/harvests", "buruh-x")
                         .header(HttpHeaders.AUTHORIZATION, "Bearer admin-token"))

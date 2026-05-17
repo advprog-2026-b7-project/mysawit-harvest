@@ -13,7 +13,8 @@ import org.springframework.data.repository.query.Param;
 import id.ac.ui.cs.advprog.mysawit.harvest.model.Harvest;
 import jakarta.persistence.LockModeType;
 
-public interface HarvestRepository extends JpaRepository<Harvest, UUID>, JpaSpecificationExecutor<Harvest> {
+public interface HarvestRepository
+        extends JpaRepository<Harvest, UUID>, JpaSpecificationExecutor<Harvest> {
     boolean existsByBuruhIdAndHarvestDate(String buruhId, LocalDate harvestDate);
 
     @Lock(LockModeType.PESSIMISTIC_WRITE)

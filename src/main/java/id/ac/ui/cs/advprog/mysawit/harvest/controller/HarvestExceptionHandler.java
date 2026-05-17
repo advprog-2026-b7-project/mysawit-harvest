@@ -44,12 +44,13 @@ public class HarvestExceptionHandler {
 
         if (ex instanceof MissingRequestHeaderException missingHeader
                 && "Authorization".equalsIgnoreCase(missingHeader.getHeaderName())) {
-            errorKey = HarvestErrorKey.FORBIDDEN;
+            errorKey = HarvestErrorKey.UNAUTHORIZED;
             message = "Authorization header is required";
-            status = HttpStatus.FORBIDDEN;
+            status = HttpStatus.UNAUTHORIZED;
         }
 
-        if (ex instanceof BindException bindException && bindException.getBindingResult().hasErrors()) {
+        if (ex instanceof BindException bindException
+                && bindException.getBindingResult().hasErrors()) {
             message = bindException.getBindingResult().getAllErrors().get(0).getDefaultMessage();
         }
 

@@ -20,6 +20,7 @@ import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageImpl;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
+import org.springframework.data.jpa.domain.Specification;
 
 import id.ac.ui.cs.advprog.mysawit.harvest.dto.HarvestPageResponse;
 import id.ac.ui.cs.advprog.mysawit.harvest.error.HarvestErrorKey;
@@ -104,7 +105,9 @@ class HarvestHistoryServiceTest {
 
         assertEquals(0, response.getTotalElements());
         assertEquals(0, response.getContent().size());
-        verify(harvestRepository, never()).findAll(any(org.springframework.data.jpa.domain.Specification.class), any(Pageable.class));
+        verify(harvestRepository, never()).findAll(
+                any(Specification.class),
+                any(Pageable.class));
     }
 
     @Test
@@ -114,7 +117,8 @@ class HarvestHistoryServiceTest {
         assignment.setMandorId("mandor-2");
         when(assignmentRepository.findByBuruhId("buruh-1")).thenReturn(Optional.of(assignment));
 
-        HarvestAuthorizationException exception = assertThrows(HarvestAuthorizationException.class, () ->
+        HarvestAuthorizationException exception = assertThrows(
+                HarvestAuthorizationException.class, () ->
                 harvestHistoryService.getHarvestHistoryByBuruhId(
                         new HarvestViewerContext("mandor-1", "MANDOR"),
                         "buruh-1",
@@ -172,7 +176,9 @@ class HarvestHistoryServiceTest {
         harvest.setPhotos(new java.util.ArrayList<>());
 
         Page<Harvest> page = new PageImpl<>(List.of(harvest), PageRequest.of(0, 20), 1);
-        when(harvestRepository.findAll(any(org.springframework.data.jpa.domain.Specification.class), any(Pageable.class)))
+        when(harvestRepository.findAll(
+                any(Specification.class),
+                any(Pageable.class)))
                 .thenReturn(page);
 
         HarvestPageResponse response = harvestHistoryService.getHarvestHistory(

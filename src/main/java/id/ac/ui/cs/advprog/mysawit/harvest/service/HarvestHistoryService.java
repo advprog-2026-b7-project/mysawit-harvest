@@ -50,16 +50,28 @@ public class HarvestHistoryService {
         HarvestStatus parsedStatus = parseStatus(status);
         validatePageSize(pageable);
 
-        String effectiveBuruhName = viewer.role().equals("BURUH") ? null : normalizeString(buruhName);
+        String effectiveBuruhName = viewer.role().equals("BURUH")
+                ? null
+                : normalizeString(buruhName);
 
-        Specification<Harvest> spec = buildCommonFilters(startDate, endDate, parsedStatus, effectiveBuruhName);
+        Specification<Harvest> spec = buildCommonFilters(
+                startDate,
+                endDate,
+                parsedStatus,
+                effectiveBuruhName);
 
         if (viewer.role().equals("BURUH")) {
             spec = spec.and((root, query, cb) -> cb.equal(root.get("buruhId"), viewer.userId()));
         } else if (viewer.role().equals("MANDOR")) {
-            List<String> supervisedBuruhIds = assignmentRepository.findBuruhIdsByMandorId(viewer.userId());
+            List<String> supervisedBuruhIds = assignmentRepository.findBuruhIdsByMandorId(
+                    viewer.userId());
             if (supervisedBuruhIds.isEmpty()) {
-                return new HarvestPageResponse(List.of(), pageable.getPageNumber(), pageable.getPageSize(), 0, 0);
+                return new HarvestPageResponse(
+                        List.of(),
+                        pageable.getPageNumber(),
+                        pageable.getPageSize(),
+                        0,
+                        0);
             }
             spec = spec.and((root, query, cb) -> root.get("buruhId").in(supervisedBuruhIds));
         }
@@ -89,7 +101,8 @@ public class HarvestHistoryService {
                             "No user found with the given buruhId");
                 });
 
-        if (viewer.role().equals("MANDOR") && !viewer.userId().equals(targetAssignment.getMandorId())) {
+        if (viewer.role().equals("MANDOR")
+                && !viewer.userId().equals(targetAssignment.getMandorId())) {
             throw new HarvestAuthorizationException(HarvestErrorKey.MANDOR_NOT_AUTHORIZED,
                     "Authenticated mandor does not supervise this buruh");
         }
@@ -101,7 +114,10 @@ public class HarvestHistoryService {
     }
 
     private void validateViewerRole(HarvestViewerContext viewer, String... allowedRoles) {
-        if (viewer == null || viewer.role() == null || viewer.userId() == null || viewer.userId().isBlank()) {
+        if (viewer == null
+                || viewer.role() == null
+                || viewer.userId() == null
+                || viewer.userId().isBlank()) {
             throw new HarvestAuthorizationException("Invalid authenticated user context");
         }
 
@@ -111,7 +127,8 @@ public class HarvestHistoryService {
             }
         }
 
-        throw new HarvestAuthorizationException(HarvestErrorKey.FORBIDDEN, "Caller role is not allowed for this endpoint");
+        throw new HarvestAuthorizationException(HarvestErrorKey.FORBIDDEN,
+                "Caller role is not allowed for this endpoint");
     }
 
     private void validateDateRange(LocalDate startDate, LocalDate endDate) {
@@ -161,7 +178,8 @@ public class HarvestHistoryService {
             }
 
             if (buruhName != null) {
-                predicates.add(cb.like(cb.lower(root.get("buruhName")), "%" + buruhName.toLowerCase() + "%"));
+                String buruhNamePattern = "%" + buruhName.toLowerCase() + "%";
+                predicates.add(cb.like(cb.lower(root.get("buruhName")), buruhNamePattern));
             }
 
             return cb.and(predicates.toArray(new Predicate[0]));
@@ -200,7 +218,9 @@ public class HarvestHistoryService {
         response.setHarvestDate(harvest.getHarvestDate());
         response.setCreatedAt(harvest.getCreatedAt());
         response.setReviewedAt(harvest.getReviewedAt());
-        response.setPhotoUrls(harvest.getPhotos().stream().map(photo -> photo.getPhotoUrl()).toList());
+        response.setPhotoUrls(harvest.getPhotos().stream()
+                .map(photo -> photo.getPhotoUrl())
+                .toList());
         return response;
     }
 }

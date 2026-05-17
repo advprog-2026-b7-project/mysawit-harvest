@@ -1,6 +1,6 @@
 package id.ac.ui.cs.advprog.mysawit.harvest.dto;
 
-import java.time.LocalDateTime;
+import java.time.Instant;
 import java.util.UUID;
 
 import id.ac.ui.cs.advprog.mysawit.harvest.model.HarvestStatus;
@@ -10,13 +10,13 @@ public class ApproveHarvestResponse {
     private UUID id;
     private HarvestStatus status;
     private String approvedBy;
-    private LocalDateTime approvedAt;
+    private Instant approvedAt;
     private String payrollStatus;
 
     public ApproveHarvestResponse(UUID id,
             HarvestStatus status,
             String approvedBy,
-            LocalDateTime approvedAt,
+            Instant approvedAt,
             String payrollStatus) {
         this.id = id;
         this.status = status;
@@ -37,7 +37,7 @@ public class ApproveHarvestResponse {
         return approvedBy;
     }
 
-    public LocalDateTime getApprovedAt() {
+    public Instant getApprovedAt() {
         return approvedAt;
     }
 
