@@ -5,7 +5,9 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.nio.file.StandardCopyOption;
+import java.time.Instant;
 import java.time.LocalDate;
+import java.time.LocalDateTime;
 import java.time.ZoneId;
 import java.util.ArrayList;
 import java.util.List;
@@ -133,13 +135,14 @@ public class HarvestService {
                     "Authenticated mandor does not supervise this buruh");
         }
 
-        java.time.LocalDateTime approvedAt = java.time.LocalDateTime.now(JAKARTA_ZONE);
+        Instant approvedAt = Instant.now();
+        LocalDateTime approvedAtInJakarta = LocalDateTime.ofInstant(approvedAt, JAKARTA_ZONE);
         String approvedBy = resolveReviewerName(reviewer);
 
         harvest.setStatus(HarvestStatus.APPROVED);
         harvest.setApprovedBy(approvedBy);
-        harvest.setApprovedAt(approvedAt);
-        harvest.setReviewedAt(approvedAt);
+        harvest.setApprovedAt(approvedAtInJakarta);
+        harvest.setReviewedAt(approvedAtInJakarta);
 
         Harvest saved = harvestRepository.save(harvest);
         publishHarvestApprovedEvent(new HarvestApprovedEvent(
@@ -152,7 +155,7 @@ public class HarvestService {
                 saved.getId(),
                 saved.getStatus(),
                 saved.getApprovedBy(),
-                saved.getApprovedAt(),
+                approvedAt,
                 "QUEUED");
     }
 

@@ -11,8 +11,8 @@ import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
 
 import id.ac.ui.cs.advprog.mysawit.harvest.error.HarvestErrorKey;
+import id.ac.ui.cs.advprog.mysawit.harvest.exception.HarvestAuthenticationException;
 import id.ac.ui.cs.advprog.mysawit.harvest.exception.HarvestAuthorizationException;
-import id.ac.ui.cs.advprog.mysawit.harvest.exception.HarvestValidationException;
 
 @Component
 public class HarvestJwtClaimsResolver {
@@ -38,7 +38,7 @@ public class HarvestJwtClaimsResolver {
         String buruhId = extractUserId(claims);
 
         if (buruhId == null || buruhId.isBlank()) {
-            throw new HarvestValidationException("JWT is missing a subject/user identifier");
+            throw new HarvestAuthenticationException("JWT is missing a subject/user identifier");
         }
 
         String plantationId = firstNonBlank(
@@ -70,7 +70,7 @@ public class HarvestJwtClaimsResolver {
 
         String userId = extractUserId(claims);
         if (userId == null || userId.isBlank()) {
-            throw new HarvestValidationException("JWT is missing a subject/user identifier");
+            throw new HarvestAuthenticationException("JWT is missing a subject/user identifier");
         }
 
         return new HarvestViewerContext(userId, role.toUpperCase());
@@ -90,7 +90,7 @@ public class HarvestJwtClaimsResolver {
 
         String userId = extractUserId(claims);
         if (userId == null || userId.isBlank()) {
-            throw new HarvestValidationException("JWT is missing a subject/user identifier");
+            throw new HarvestAuthenticationException("JWT is missing a subject/user identifier");
         }
 
         String name = firstNonBlank(
@@ -103,7 +103,7 @@ public class HarvestJwtClaimsResolver {
 
     private Map<String, Object> decodeClaims(String authorizationHeader) {
         if (authorizationHeader == null || authorizationHeader.isBlank()) {
-            throw new HarvestAuthorizationException("Authorization header is required");
+            throw new HarvestAuthenticationException("Authorization header is required");
         }
 
         String token = extractToken(authorizationHeader);
@@ -122,7 +122,7 @@ public class HarvestJwtClaimsResolver {
     private String extractToken(String authorizationHeader) {
         String prefix = "Bearer ";
         if (!authorizationHeader.startsWith(prefix)) {
-            throw new HarvestAuthorizationException("Authorization header must use Bearer scheme");
+            throw new HarvestAuthenticationException("Authorization header must use Bearer scheme");
         }
         return authorizationHeader.substring(prefix.length()).trim();
     }
@@ -130,7 +130,7 @@ public class HarvestJwtClaimsResolver {
     private Map<String, Object> decodePayload(String token) {
         String[] parts = token.split("\\.");
         if (parts.length < 2) {
-            throw new HarvestAuthorizationException("Invalid JWT format");
+            throw new HarvestAuthenticationException("Invalid JWT format");
         }
 
         try {
@@ -140,9 +140,9 @@ public class HarvestJwtClaimsResolver {
                     new TypeReference<Map<String, Object>>() {
                     });
         } catch (java.io.IOException ex) {
-            throw new HarvestAuthorizationException("Unable to decode JWT claims");
+            throw new HarvestAuthenticationException("Unable to decode JWT claims");
         } catch (IllegalArgumentException ex) {
-            throw new HarvestAuthorizationException("Unable to decode JWT claims");
+            throw new HarvestAuthenticationException("Unable to decode JWT claims");
         }
     }
 

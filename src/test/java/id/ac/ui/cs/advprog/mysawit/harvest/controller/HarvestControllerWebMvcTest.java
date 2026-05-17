@@ -1,6 +1,7 @@
 package id.ac.ui.cs.advprog.mysawit.harvest.controller;
 
 import java.math.BigDecimal;
+import java.time.Instant;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.List;
@@ -26,6 +27,7 @@ import id.ac.ui.cs.advprog.mysawit.harvest.dto.ApproveHarvestResponse;
 import id.ac.ui.cs.advprog.mysawit.harvest.dto.HarvestPageResponse;
 import id.ac.ui.cs.advprog.mysawit.harvest.dto.HarvestResponse;
 import id.ac.ui.cs.advprog.mysawit.harvest.error.HarvestErrorKey;
+import id.ac.ui.cs.advprog.mysawit.harvest.exception.HarvestAuthenticationException;
 import id.ac.ui.cs.advprog.mysawit.harvest.exception.HarvestAuthorizationException;
 import id.ac.ui.cs.advprog.mysawit.harvest.model.HarvestStatus;
 import id.ac.ui.cs.advprog.mysawit.harvest.security.HarvestJwtClaimsResolver;
@@ -123,7 +125,7 @@ class HarvestControllerWebMvcTest {
                 harvestId,
                 HarvestStatus.APPROVED,
                 "Budi Santoso",
-                LocalDateTime.of(2025, 7, 21, 10, 15),
+                Instant.parse("2025-07-21T10:15:00Z"),
                 "QUEUED");
 
         when(claimsResolver.resolveMandor("Bearer mandor-token")).thenReturn(reviewer);
@@ -136,6 +138,7 @@ class HarvestControllerWebMvcTest {
                 .andExpect(jsonPath("$.data.id").value(harvestId.toString()))
                 .andExpect(jsonPath("$.data.status").value("APPROVED"))
                 .andExpect(jsonPath("$.data.approvedBy").value("Budi Santoso"))
+                .andExpect(jsonPath("$.data.approvedAt").value("2025-07-21T10:15:00Z"))
                 .andExpect(jsonPath("$.data.payrollStatus").value("QUEUED"));
     }
 
@@ -151,5 +154,30 @@ class HarvestControllerWebMvcTest {
                 .andExpect(status().isForbidden())
                 .andExpect(jsonPath("$.status").value("error"))
                 .andExpect(jsonPath("$.errorKey").value("FORBIDDEN"));
+    }
+
+    @Test
+    void approveHarvest_shouldReturnUnauthorizedWhenAuthorizationHeaderMissing() throws Exception {
+        UUID harvestId = UUID.fromString("55555555-5555-5555-5555-555555555555");
+
+        mockMvc.perform(patch("/api/v1/harvests/{harvestId}/approve", harvestId))
+                .andExpect(status().isUnauthorized())
+                .andExpect(jsonPath("$.status").value("error"))
+                .andExpect(jsonPath("$.errorKey").value("UNAUTHORIZED"))
+                .andExpect(jsonPath("$.errors[0]").value("UNAUTHORIZED"));
+    }
+
+    @Test
+    void approveHarvest_shouldReturnUnauthorizedWhenJwtInvalid() throws Exception {
+        UUID harvestId = UUID.fromString("66666666-6666-6666-6666-666666666666");
+        when(claimsResolver.resolveMandor("Bearer invalid-token"))
+                .thenThrow(new HarvestAuthenticationException("Invalid JWT format"));
+
+        mockMvc.perform(patch("/api/v1/harvests/{harvestId}/approve", harvestId)
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer invalid-token"))
+                .andExpect(status().isUnauthorized())
+                .andExpect(jsonPath("$.status").value("error"))
+                .andExpect(jsonPath("$.errorKey").value("UNAUTHORIZED"))
+                .andExpect(jsonPath("$.errors[0]").value("UNAUTHORIZED"));
     }
 }
