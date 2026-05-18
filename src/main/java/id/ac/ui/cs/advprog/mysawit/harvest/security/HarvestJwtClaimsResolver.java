@@ -1,26 +1,30 @@
 package id.ac.ui.cs.advprog.mysawit.harvest.security;
 
-import java.nio.charset.StandardCharsets;
-import java.util.Base64;
 import java.util.List;
 import java.util.Map;
 
+import javax.crypto.SecretKey;
+
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
 
-import com.fasterxml.jackson.core.type.TypeReference;
-import com.fasterxml.jackson.databind.ObjectMapper;
+import io.jsonwebtoken.Claims;
+import io.jsonwebtoken.JwtException;
+import io.jsonwebtoken.Jwts;
+import io.jsonwebtoken.security.Keys;
 
 import id.ac.ui.cs.advprog.mysawit.harvest.error.HarvestErrorKey;
 import id.ac.ui.cs.advprog.mysawit.harvest.exception.HarvestAuthenticationException;
 import id.ac.ui.cs.advprog.mysawit.harvest.exception.HarvestAuthorizationException;
+import java.nio.charset.StandardCharsets;
 
 @Component
 public class HarvestJwtClaimsResolver {
 
-    private final ObjectMapper objectMapper;
+    private final SecretKey secretKey;
 
-    public HarvestJwtClaimsResolver(ObjectMapper objectMapper) {
-        this.objectMapper = objectMapper;
+    public HarvestJwtClaimsResolver(@Value("${jwt.secret}") String secret) {
+        this.secretKey = Keys.hmacShaKeyFor(secret.getBytes(StandardCharsets.UTF_8));
     }
 
     public HarvestSubmissionContext resolve(String authorizationHeader) {
@@ -107,7 +111,7 @@ public class HarvestJwtClaimsResolver {
         }
 
         String token = extractToken(authorizationHeader);
-        return decodePayload(token);
+        return parseSignedClaims(token);
     }
 
     private String extractUserId(Map<String, Object> claims) {
@@ -127,22 +131,16 @@ public class HarvestJwtClaimsResolver {
         return authorizationHeader.substring(prefix.length()).trim();
     }
 
-    private Map<String, Object> decodePayload(String token) {
-        String[] parts = token.split("\\.");
-        if (parts.length < 2) {
-            throw new HarvestAuthenticationException("Invalid JWT format");
-        }
-
+    private Map<String, Object> parseSignedClaims(String token) {
         try {
-            byte[] payloadBytes = Base64.getUrlDecoder().decode(parts[1]);
-            return objectMapper.readValue(
-                    new String(payloadBytes, StandardCharsets.UTF_8),
-                    new TypeReference<Map<String, Object>>() {
-                    });
-        } catch (java.io.IOException ex) {
-            throw new HarvestAuthenticationException("Unable to decode JWT claims");
-        } catch (IllegalArgumentException ex) {
-            throw new HarvestAuthenticationException("Unable to decode JWT claims");
+            Claims claims = Jwts.parser()
+                    .verifyWith(secretKey)
+                    .build()
+                    .parseSignedClaims(token)
+                    .getPayload();
+            return claims;
+        } catch (JwtException | IllegalArgumentException ex) {
+            throw new HarvestAuthenticationException("Missing or invalid JWT token");
         }
     }
 
