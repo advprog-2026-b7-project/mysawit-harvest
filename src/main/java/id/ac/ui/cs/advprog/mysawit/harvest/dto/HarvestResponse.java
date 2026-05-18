@@ -1,8 +1,8 @@
 package id.ac.ui.cs.advprog.mysawit.harvest.dto;
 
 import java.math.BigDecimal;
+import java.time.Instant;
 import java.time.LocalDate;
-import java.time.LocalDateTime;
 import java.util.List;
 import java.util.UUID;
 
@@ -18,8 +18,8 @@ public class HarvestResponse {
     private HarvestStatus status;
     private String rejectionReason;
     private LocalDate harvestDate;
-    private LocalDateTime createdAt;
-    private LocalDateTime reviewedAt;
+    private Instant createdAt;
+    private Instant reviewedAt;
     private List<String> photoUrls;
 
     public UUID getId() {
@@ -86,19 +86,19 @@ public class HarvestResponse {
         this.harvestDate = harvestDate;
     }
 
-    public LocalDateTime getCreatedAt() {
+    public Instant getCreatedAt() {
         return createdAt;
     }
 
-    public void setCreatedAt(LocalDateTime createdAt) {
+    public void setCreatedAt(Instant createdAt) {
         this.createdAt = createdAt;
     }
 
-    public LocalDateTime getReviewedAt() {
+    public Instant getReviewedAt() {
         return reviewedAt;
     }
 
-    public void setReviewedAt(LocalDateTime reviewedAt) {
+    public void setReviewedAt(Instant reviewedAt) {
         this.reviewedAt = reviewedAt;
     }
 

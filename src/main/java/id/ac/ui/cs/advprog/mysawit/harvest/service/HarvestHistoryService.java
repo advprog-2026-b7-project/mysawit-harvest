@@ -195,7 +195,7 @@ public class HarvestHistoryService {
 
     private HarvestPageResponse toPageResponse(Page<Harvest> page) {
         List<HarvestResponse> content = page.getContent().stream()
-                .map(this::toResponse)
+                .map(HarvestResponseMapper::toResponse)
                 .toList();
 
         return new HarvestPageResponse(
@@ -204,23 +204,5 @@ public class HarvestHistoryService {
                 page.getSize(),
                 page.getTotalElements(),
                 page.getTotalPages());
-    }
-
-    private HarvestResponse toResponse(Harvest harvest) {
-        HarvestResponse response = new HarvestResponse();
-        response.setId(harvest.getId());
-        response.setBuruhId(harvest.getBuruhId());
-        response.setBuruhName(harvest.getBuruhName());
-        response.setWeightKg(harvest.getWeightKg());
-        response.setNotes(harvest.getNotes());
-        response.setStatus(harvest.getStatus());
-        response.setRejectionReason(harvest.getRejectionReason());
-        response.setHarvestDate(harvest.getHarvestDate());
-        response.setCreatedAt(harvest.getCreatedAt());
-        response.setReviewedAt(harvest.getReviewedAt());
-        response.setPhotoUrls(harvest.getPhotos().stream()
-                .map(photo -> photo.getPhotoUrl())
-                .toList());
-        return response;
     }
 }

@@ -9,7 +9,6 @@ import java.time.Instant;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.ZoneId;
-import java.util.ArrayList;
 import java.util.List;
 import java.util.Set;
 import java.util.UUID;
@@ -60,22 +59,38 @@ public class HarvestService {
     private final BuruhMandorAssignmentRepository assignmentRepository;
     private final ApplicationEventPublisher eventPublisher;
     private final Path storageRoot;
+    private final String publicBaseUrl;
 
     @Autowired
     public HarvestService(HarvestRepository harvestRepository,
             BuruhMandorAssignmentRepository assignmentRepository,
             ApplicationEventPublisher eventPublisher,
-            @Value("${storage.harvest.dir:uploads/harvests}") String storageDir) {
+            @Value("${storage.harvest.dir:uploads/harvests}") String storageDir,
+            @Value("${storage.harvest.public-base-url:https://storage.mysawit.id}")
+            String publicBaseUrl) {
         this.harvestRepository = harvestRepository;
         this.assignmentRepository = assignmentRepository;
         this.eventPublisher = eventPublisher;
         this.storageRoot = Paths.get(storageDir).toAbsolutePath().normalize();
+        this.publicBaseUrl = normalizePublicBaseUrl(publicBaseUrl);
     }
 
     HarvestService(HarvestRepository harvestRepository,
             BuruhMandorAssignmentRepository assignmentRepository,
             String storageDir) {
         this(harvestRepository, assignmentRepository, null, storageDir);
+    }
+
+    HarvestService(HarvestRepository harvestRepository,
+            BuruhMandorAssignmentRepository assignmentRepository,
+            ApplicationEventPublisher eventPublisher,
+            String storageDir) {
+        this(
+                harvestRepository,
+                assignmentRepository,
+                eventPublisher,
+                storageDir,
+                "https://storage.mysawit.id");
     }
 
     @Transactional
@@ -105,7 +120,7 @@ public class HarvestService {
 
         try {
             Harvest saved = harvestRepository.save(harvest);
-            return toResponse(saved);
+            return HarvestResponseMapper.toResponse(saved);
         } catch (DataIntegrityViolationException ex) {
             throw new HarvestAlreadyExistsException("Harvest for today already submitted");
         }
@@ -321,7 +336,7 @@ public class HarvestService {
             Files.copy(file.getInputStream(), target, StandardCopyOption.REPLACE_EXISTING);
 
             HarvestPhoto photo = new HarvestPhoto();
-            photo.setPhotoUrl("/uploads/harvests/" + filename);
+            photo.setPhotoUrl(buildPublicPhotoUrl(filename));
             photo.setOriginalFilename(originalName);
             photo.setContentType(file.getContentType());
             photo.setFileSizeBytes(file.getSize());
@@ -346,22 +361,15 @@ public class HarvestService {
         return Paths.get(originalName).getFileName().toString();
     }
 
-    private HarvestResponse toResponse(Harvest harvest) {
-        HarvestResponse response = new HarvestResponse();
-        response.setId(harvest.getId());
-        response.setBuruhId(harvest.getBuruhId());
-        response.setBuruhName(harvest.getBuruhName());
-        response.setWeightKg(harvest.getWeightKg());
-        response.setNotes(harvest.getNotes());
-        response.setStatus(harvest.getStatus());
-        response.setRejectionReason(harvest.getRejectionReason());
-        response.setHarvestDate(harvest.getHarvestDate());
-        response.setCreatedAt(harvest.getCreatedAt());
-        response.setReviewedAt(harvest.getReviewedAt());
+    private String buildPublicPhotoUrl(String filename) {
+        return publicBaseUrl + "/harvests/" + filename;
+    }
 
-        List<String> photoUrls = new ArrayList<>();
-        harvest.getPhotos().forEach(photo -> photoUrls.add(photo.getPhotoUrl()));
-        response.setPhotoUrls(photoUrls);
-        return response;
+    private String normalizePublicBaseUrl(String configuredBaseUrl) {
+        if (configuredBaseUrl == null || configuredBaseUrl.isBlank()) {
+            return "https://storage.mysawit.id";
+        }
+
+        return configuredBaseUrl.replaceAll("/+$", "");
     }
 }

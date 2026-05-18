@@ -17,9 +17,9 @@ import org.springframework.web.bind.annotation.ModelAttribute;
 import org.springframework.web.bind.annotation.PatchMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
-import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RequestHeader;
 import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RequestPart;
 import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.multipart.MultipartFile;
@@ -55,7 +55,7 @@ public class HarvestController {
     @PostMapping(
             consumes = MediaType.MULTIPART_FORM_DATA_VALUE,
             produces = MediaType.APPLICATION_JSON_VALUE)
-    public ResponseEntity<HarvestResponse> createHarvest(
+    public ResponseEntity<ApiSuccessResponse<HarvestResponse>> createHarvest(
             @Valid @ModelAttribute HarvestCreateRequest request,
             @RequestPart(value = "photos", required = false) List<MultipartFile> photos,
             @RequestHeader(HttpHeaders.AUTHORIZATION) String authorization) {
@@ -63,7 +63,8 @@ public class HarvestController {
                 request,
                 claimsResolver.resolve(authorization),
                 photos);
-        return ResponseEntity.status(HttpStatus.CREATED).body(response);
+        return ResponseEntity.status(HttpStatus.CREATED)
+                .body(new ApiSuccessResponse<>("success", response));
     }
 
     @GetMapping(produces = MediaType.APPLICATION_JSON_VALUE)

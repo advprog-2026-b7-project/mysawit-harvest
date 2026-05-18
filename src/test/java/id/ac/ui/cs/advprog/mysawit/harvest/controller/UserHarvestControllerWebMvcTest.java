@@ -1,8 +1,8 @@
 package id.ac.ui.cs.advprog.mysawit.harvest.controller;
 
 import java.math.BigDecimal;
+import java.time.Instant;
 import java.time.LocalDate;
-import java.time.LocalDateTime;
 import java.util.List;
 import java.util.UUID;
 
@@ -53,7 +53,7 @@ class UserHarvestControllerWebMvcTest {
         item.setWeightKg(new BigDecimal("99.75"));
         item.setStatus(HarvestStatus.APPROVED);
         item.setHarvestDate(LocalDate.of(2025, 7, 20));
-        item.setCreatedAt(LocalDateTime.of(2025, 7, 20, 9, 15));
+        item.setCreatedAt(Instant.parse("2025-07-20T02:15:00Z"));
 
         HarvestPageResponse page = new HarvestPageResponse(List.of(item), 0, 20, 1, 1);
 
