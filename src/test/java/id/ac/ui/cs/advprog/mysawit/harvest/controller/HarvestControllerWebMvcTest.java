@@ -3,7 +3,6 @@ package id.ac.ui.cs.advprog.mysawit.harvest.controller;
 import java.math.BigDecimal;
 import java.time.Instant;
 import java.time.LocalDate;
-import java.time.LocalDateTime;
 import java.util.List;
 import java.util.UUID;
 
@@ -17,8 +16,11 @@ import org.springframework.boot.test.mock.mockito.MockBean;
 import org.springframework.context.annotation.Import;
 import org.springframework.data.domain.Pageable;
 import org.springframework.http.HttpHeaders;
+import org.springframework.http.MediaType;
+import org.springframework.mock.web.MockMultipartFile;
 import org.springframework.test.web.servlet.MockMvc;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.multipart;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.patch;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
@@ -26,14 +28,17 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import id.ac.ui.cs.advprog.mysawit.harvest.dto.ApproveHarvestResponse;
 import id.ac.ui.cs.advprog.mysawit.harvest.dto.HarvestPageResponse;
 import id.ac.ui.cs.advprog.mysawit.harvest.dto.HarvestResponse;
+import id.ac.ui.cs.advprog.mysawit.harvest.dto.RejectHarvestResponse;
 import id.ac.ui.cs.advprog.mysawit.harvest.error.HarvestErrorKey;
 import id.ac.ui.cs.advprog.mysawit.harvest.exception.HarvestAuthenticationException;
 import id.ac.ui.cs.advprog.mysawit.harvest.exception.HarvestAuthorizationException;
 import id.ac.ui.cs.advprog.mysawit.harvest.exception.HarvestConflictException;
 import id.ac.ui.cs.advprog.mysawit.harvest.exception.HarvestNotFoundException;
+import id.ac.ui.cs.advprog.mysawit.harvest.exception.HarvestValidationException;
 import id.ac.ui.cs.advprog.mysawit.harvest.model.HarvestStatus;
 import id.ac.ui.cs.advprog.mysawit.harvest.security.HarvestJwtClaimsResolver;
 import id.ac.ui.cs.advprog.mysawit.harvest.security.HarvestReviewerContext;
+import id.ac.ui.cs.advprog.mysawit.harvest.security.HarvestSubmissionContext;
 import id.ac.ui.cs.advprog.mysawit.harvest.security.HarvestViewerContext;
 import id.ac.ui.cs.advprog.mysawit.harvest.service.HarvestHistoryService;
 import id.ac.ui.cs.advprog.mysawit.harvest.service.HarvestService;
@@ -55,6 +60,45 @@ class HarvestControllerWebMvcTest {
     private HarvestJwtClaimsResolver claimsResolver;
 
     @Test
+    void createHarvest_shouldReturnSuccessEnvelopeForH01() throws Exception {
+        HarvestSubmissionContext context = new HarvestSubmissionContext(
+                "buruh-1",
+                "Slamet Raharjo",
+                "plantation-1",
+                "BURUH");
+        HarvestResponse response = new HarvestResponse();
+        response.setId(UUID.fromString("77777777-7777-7777-7777-777777777777"));
+        response.setBuruhId("buruh-1");
+        response.setBuruhName("Slamet Raharjo");
+        response.setWeightKg(new BigDecimal("350.5"));
+        response.setNotes("Hasil panen pagi hari di blok A");
+        response.setPhotoUrls(List.of("https://storage.mysawit.id/harvests/photo-1.jpg"));
+        response.setStatus(HarvestStatus.PENDING);
+        response.setHarvestDate(LocalDate.of(2025, 7, 21));
+        response.setCreatedAt(Instant.parse("2025-07-21T00:45:00Z"));
+
+        MockMultipartFile photo = new MockMultipartFile(
+                "photos",
+                "foto1.jpg",
+                "image/jpeg",
+                new byte[] {1, 2, 3});
+
+        when(claimsResolver.resolve("Bearer buruh-token")).thenReturn(context);
+        when(harvestService.createHarvest(any(), eq(context), any())).thenReturn(response);
+
+        mockMvc.perform(multipart("/api/v1/harvests")
+                        .file(photo)
+                        .param("weightKg", "350.5")
+                        .param("notes", "Hasil panen pagi hari di blok A")
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer buruh-token"))
+                .andExpect(status().isCreated())
+                .andExpect(jsonPath("$.status").value("success"))
+                .andExpect(jsonPath("$.data.id").value(response.getId().toString()))
+                .andExpect(jsonPath("$.data.status").value("PENDING"))
+                .andExpect(jsonPath("$.data.createdAt").value("2025-07-21T00:45:00Z"));
+    }
+
+    @Test
     void getHarvestHistory_shouldReturnPagedResultForH04() throws Exception {
         HarvestViewerContext viewer = new HarvestViewerContext("admin-1", "ADMIN");
         HarvestResponse item = new HarvestResponse();
@@ -64,8 +108,8 @@ class HarvestControllerWebMvcTest {
         item.setWeightKg(new BigDecimal("120.50"));
         item.setStatus(HarvestStatus.PENDING);
         item.setHarvestDate(LocalDate.of(2025, 7, 21));
-        item.setCreatedAt(LocalDateTime.of(2025, 7, 21, 8, 0));
-        item.setPhotoUrls(List.of("/uploads/harvests/photo-1.jpg"));
+        item.setCreatedAt(Instant.parse("2025-07-21T01:00:00Z"));
+        item.setPhotoUrls(List.of("https://storage.mysawit.id/harvests/photo-1.jpg"));
 
         HarvestPageResponse page = new HarvestPageResponse(List.of(item), 0, 20, 1, 1);
 
@@ -181,5 +225,58 @@ class HarvestControllerWebMvcTest {
                 .andExpect(jsonPath("$.status").value("error"))
                 .andExpect(jsonPath("$.errorKey").value("UNAUTHORIZED"))
                 .andExpect(jsonPath("$.errors[0]").value("UNAUTHORIZED"));
+    }
+
+    @Test
+    void rejectHarvest_shouldReturnRejectedResponseForH03() throws Exception {
+        UUID harvestId = UUID.fromString("88888888-8888-8888-8888-888888888888");
+        HarvestReviewerContext reviewer = new HarvestReviewerContext(
+                "mandor-1",
+                "MANDOR",
+                "Budi Santoso");
+        RejectHarvestResponse response = new RejectHarvestResponse(
+                harvestId,
+                HarvestStatus.REJECTED,
+                "Berat timbangan tidak sesuai",
+                "Budi Santoso",
+                Instant.parse("2025-07-21T10:30:00Z"));
+
+        when(claimsResolver.resolveMandor("Bearer mandor-token")).thenReturn(reviewer);
+        when(harvestService.rejectHarvest(eq(harvestId), eq(reviewer), any()))
+                .thenReturn(response);
+
+        mockMvc.perform(patch("/api/v1/harvests/{harvestId}/reject", harvestId)
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer mandor-token")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"rejectionReason\":\"Berat timbangan tidak sesuai\"}"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.status").value("success"))
+                .andExpect(jsonPath("$.data.id").value(harvestId.toString()))
+                .andExpect(jsonPath("$.data.status").value("REJECTED"))
+                .andExpect(jsonPath("$.data.rejectedBy").value("Budi Santoso"))
+                .andExpect(jsonPath("$.data.rejectedAt").value("2025-07-21T10:30:00Z"));
+    }
+
+    @Test
+    void rejectHarvest_shouldReturnBadRequestWhenReasonMissing() throws Exception {
+        UUID harvestId = UUID.fromString("99999999-9999-9999-9999-999999999999");
+        HarvestReviewerContext reviewer = new HarvestReviewerContext(
+                "mandor-1",
+                "MANDOR",
+                "Budi Santoso");
+
+        when(claimsResolver.resolveMandor("Bearer mandor-token")).thenReturn(reviewer);
+        when(harvestService.rejectHarvest(eq(harvestId), eq(reviewer), any()))
+                .thenThrow(new HarvestValidationException(
+                        HarvestErrorKey.REJECTION_REASON_REQUIRED,
+                        "rejectionReason is required"));
+
+        mockMvc.perform(patch("/api/v1/harvests/{harvestId}/reject", harvestId)
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer mandor-token")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"rejectionReason\":\" \"}"))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.status").value("error"))
+                .andExpect(jsonPath("$.errorKey").value("REJECTION_REASON_REQUIRED"));
     }
 }

@@ -32,6 +32,8 @@ import org.springframework.transaction.support.TransactionSynchronizationManager
 import id.ac.ui.cs.advprog.mysawit.harvest.dto.ApproveHarvestResponse;
 import id.ac.ui.cs.advprog.mysawit.harvest.dto.HarvestCreateRequest;
 import id.ac.ui.cs.advprog.mysawit.harvest.dto.HarvestResponse;
+import id.ac.ui.cs.advprog.mysawit.harvest.dto.RejectHarvestRequest;
+import id.ac.ui.cs.advprog.mysawit.harvest.dto.RejectHarvestResponse;
 import id.ac.ui.cs.advprog.mysawit.harvest.error.HarvestErrorKey;
 import id.ac.ui.cs.advprog.mysawit.harvest.event.HarvestApprovedEvent;
 import id.ac.ui.cs.advprog.mysawit.harvest.exception.HarvestAlreadyExistsException;
@@ -185,7 +187,11 @@ class HarvestServiceTest {
         request.setNotes("Valid notes");
 
         byte[] payload = new byte[(5 * 1024 * 1024) + 1];
-        MockMultipartFile photo = new MockMultipartFile("photos", "big.jpg", "image/jpeg", payload);
+        MockMultipartFile photo = new MockMultipartFile(
+                "photos",
+                "big.jpg",
+                "image/jpeg",
+                payload);
 
         HarvestValidationException exception = assertThrows(HarvestValidationException.class, () ->
                 harvestService.createHarvest(
@@ -387,6 +393,84 @@ class HarvestServiceTest {
         }
     }
 
+    @Test
+    void rejectHarvest_shouldRejectWhenMandorSupervisesBuruh() {
+        UUID harvestId = UUID.fromString("99999999-9999-9999-9999-999999999999");
+        Harvest harvest = pendingHarvest(harvestId);
+
+        when(harvestRepository.findByIdForUpdate(harvestId)).thenReturn(Optional.of(harvest));
+        when(assignmentRepository.findByBuruhId("buruh-1"))
+                .thenReturn(Optional.of(validAssignment()));
+        when(harvestRepository.save(any(Harvest.class)))
+                .thenAnswer(invocation -> invocation.getArgument(0));
+
+        RejectHarvestResponse response = harvestService.rejectHarvest(
+                harvestId,
+                new HarvestReviewerContext("mandor-1", "MANDOR", "Budi Santoso"),
+                validRejectionRequest());
+
+        assertEquals(harvestId, response.getId());
+        assertEquals(HarvestStatus.REJECTED, response.getStatus());
+        assertEquals("Berat timbangan tidak sesuai", response.getRejectionReason());
+        assertEquals("Budi Santoso", response.getRejectedBy());
+        assertNotNull(response.getRejectedAt());
+        assertEquals(HarvestStatus.REJECTED, harvest.getStatus());
+        assertEquals("Berat timbangan tidak sesuai", harvest.getRejectionReason());
+        assertEquals(harvest.getRejectedAt(), harvest.getReviewedAt());
+    }
+
+    @Test
+    void rejectHarvest_shouldRejectMissingReason() {
+        RejectHarvestRequest request = new RejectHarvestRequest();
+        request.setRejectionReason(" ");
+
+        HarvestValidationException exception = assertThrows(HarvestValidationException.class, () ->
+                harvestService.rejectHarvest(
+                        UUID.fromString("aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa"),
+                        new HarvestReviewerContext("mandor-1", "MANDOR", "Budi Santoso"),
+                        request));
+
+        assertEquals(HarvestErrorKey.REJECTION_REASON_REQUIRED, exception.getErrorKey());
+        verify(harvestRepository, never()).findByIdForUpdate(any(UUID.class));
+    }
+
+    @Test
+    void rejectHarvest_shouldRejectNonSupervisingMandor() {
+        UUID harvestId = UUID.fromString("bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb");
+        Harvest harvest = pendingHarvest(harvestId);
+        BuruhMandorAssignment assignment = validAssignment();
+        assignment.setMandorId("mandor-2");
+
+        when(harvestRepository.findByIdForUpdate(harvestId)).thenReturn(Optional.of(harvest));
+        when(assignmentRepository.findByBuruhId("buruh-1")).thenReturn(Optional.of(assignment));
+
+        HarvestAuthorizationException exception = assertThrows(
+                HarvestAuthorizationException.class, () ->
+                harvestService.rejectHarvest(
+                        harvestId,
+                        new HarvestReviewerContext("mandor-1", "MANDOR", "Budi Santoso"),
+                        validRejectionRequest()));
+
+        assertEquals(HarvestErrorKey.MANDOR_NOT_AUTHORIZED, exception.getErrorKey());
+        verify(harvestRepository, never()).save(any(Harvest.class));
+    }
+
+    @Test
+    void rejectHarvest_shouldRejectAlreadyReviewedHarvest() {
+        UUID harvestId = UUID.fromString("cccccccc-cccc-cccc-cccc-cccccccccccc");
+        Harvest harvest = pendingHarvest(harvestId);
+        harvest.setStatus(HarvestStatus.APPROVED);
+        when(harvestRepository.findByIdForUpdate(harvestId)).thenReturn(Optional.of(harvest));
+
+        HarvestConflictException exception = assertThrows(HarvestConflictException.class, () ->
+                harvestService.rejectHarvest(
+                        harvestId,
+                        new HarvestReviewerContext("mandor-1", "MANDOR", "Budi Santoso"),
+                        validRejectionRequest()));
+
+        assertEquals(HarvestErrorKey.HARVEST_ALREADY_REVIEWED, exception.getErrorKey());
+    }
+
     private BuruhMandorAssignment validAssignment() {
         BuruhMandorAssignment assignment = new BuruhMandorAssignment();
         assignment.setBuruhId("buruh-1");
@@ -402,6 +486,12 @@ class HarvestServiceTest {
                 "Slamet Raharjo",
                 "plantation-1",
                 "BURUH");
+    }
+
+    private RejectHarvestRequest validRejectionRequest() {
+        RejectHarvestRequest request = new RejectHarvestRequest();
+        request.setRejectionReason("Berat timbangan tidak sesuai");
+        return request;
     }
 
     private Harvest pendingHarvest(UUID harvestId) {

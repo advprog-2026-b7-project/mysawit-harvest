@@ -9,7 +9,6 @@ import java.time.Instant;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.ZoneId;
-import java.util.ArrayList;
 import java.util.List;
 import java.util.Set;
 import java.util.UUID;
@@ -28,6 +27,8 @@ import org.springframework.web.multipart.MultipartFile;
 import id.ac.ui.cs.advprog.mysawit.harvest.dto.ApproveHarvestResponse;
 import id.ac.ui.cs.advprog.mysawit.harvest.dto.HarvestCreateRequest;
 import id.ac.ui.cs.advprog.mysawit.harvest.dto.HarvestResponse;
+import id.ac.ui.cs.advprog.mysawit.harvest.dto.RejectHarvestRequest;
+import id.ac.ui.cs.advprog.mysawit.harvest.dto.RejectHarvestResponse;
 import id.ac.ui.cs.advprog.mysawit.harvest.error.HarvestErrorKey;
 import id.ac.ui.cs.advprog.mysawit.harvest.event.HarvestApprovedEvent;
 import id.ac.ui.cs.advprog.mysawit.harvest.exception.HarvestAlreadyExistsException;
@@ -60,22 +61,38 @@ public class HarvestService {
     private final BuruhMandorAssignmentRepository assignmentRepository;
     private final ApplicationEventPublisher eventPublisher;
     private final Path storageRoot;
+    private final String publicBaseUrl;
 
     @Autowired
     public HarvestService(HarvestRepository harvestRepository,
             BuruhMandorAssignmentRepository assignmentRepository,
             ApplicationEventPublisher eventPublisher,
-            @Value("${storage.harvest.dir:uploads/harvests}") String storageDir) {
+            @Value("${storage.harvest.dir:uploads/harvests}") String storageDir,
+            @Value("${storage.harvest.public-base-url:https://storage.mysawit.id}")
+            String publicBaseUrl) {
         this.harvestRepository = harvestRepository;
         this.assignmentRepository = assignmentRepository;
         this.eventPublisher = eventPublisher;
         this.storageRoot = Paths.get(storageDir).toAbsolutePath().normalize();
+        this.publicBaseUrl = normalizePublicBaseUrl(publicBaseUrl);
     }
 
     HarvestService(HarvestRepository harvestRepository,
             BuruhMandorAssignmentRepository assignmentRepository,
             String storageDir) {
         this(harvestRepository, assignmentRepository, null, storageDir);
+    }
+
+    HarvestService(HarvestRepository harvestRepository,
+            BuruhMandorAssignmentRepository assignmentRepository,
+            ApplicationEventPublisher eventPublisher,
+            String storageDir) {
+        this(
+                harvestRepository,
+                assignmentRepository,
+                eventPublisher,
+                storageDir,
+                "https://storage.mysawit.id");
     }
 
     @Transactional
@@ -105,7 +122,7 @@ public class HarvestService {
 
         try {
             Harvest saved = harvestRepository.save(harvest);
-            return toResponse(saved);
+            return HarvestResponseMapper.toResponse(saved);
         } catch (DataIntegrityViolationException ex) {
             throw new HarvestAlreadyExistsException("Harvest for today already submitted");
         }
@@ -113,27 +130,7 @@ public class HarvestService {
 
     @Transactional
     public ApproveHarvestResponse approveHarvest(UUID harvestId, HarvestReviewerContext reviewer) {
-        validateReviewerContext(reviewer);
-
-        Harvest harvest = harvestRepository.findByIdForUpdate(harvestId)
-                .orElseThrow(() -> new HarvestNotFoundException(HarvestErrorKey.HARVEST_NOT_FOUND,
-                        "No harvest found with the given harvestId"));
-
-        if (harvest.getStatus() != HarvestStatus.PENDING) {
-            throw new HarvestConflictException(HarvestErrorKey.HARVEST_ALREADY_REVIEWED,
-                    "Harvest has already been approved or rejected");
-        }
-
-        BuruhMandorAssignment assignment = assignmentRepository.findByBuruhId(
-                        harvest.getBuruhId())
-                .orElseThrow(() -> new HarvestAuthorizationException(
-                        HarvestErrorKey.MANDOR_NOT_AUTHORIZED,
-                        "Authenticated mandor does not supervise this buruh"));
-
-        if (!reviewer.userId().equals(assignment.getMandorId())) {
-            throw new HarvestAuthorizationException(HarvestErrorKey.MANDOR_NOT_AUTHORIZED,
-                    "Authenticated mandor does not supervise this buruh");
-        }
+        Harvest harvest = findPendingHarvestForReview(harvestId, reviewer);
 
         Instant approvedAt = Instant.now();
         LocalDateTime approvedAtInJakarta = LocalDateTime.ofInstant(approvedAt, JAKARTA_ZONE);
@@ -157,6 +154,74 @@ public class HarvestService {
                 saved.getApprovedBy(),
                 approvedAt,
                 "QUEUED");
+    }
+
+    @Transactional
+    public RejectHarvestResponse rejectHarvest(UUID harvestId,
+            HarvestReviewerContext reviewer,
+            RejectHarvestRequest request) {
+        String rejectionReason = validateRejectionReason(request);
+        Harvest harvest = findPendingHarvestForReview(harvestId, reviewer);
+
+        Instant rejectedAt = Instant.now();
+        LocalDateTime rejectedAtInJakarta = LocalDateTime.ofInstant(rejectedAt, JAKARTA_ZONE);
+        String rejectedBy = resolveReviewerName(reviewer);
+
+        harvest.setStatus(HarvestStatus.REJECTED);
+        harvest.setRejectionReason(rejectionReason);
+        harvest.setRejectedBy(rejectedBy);
+        harvest.setRejectedAt(rejectedAtInJakarta);
+        harvest.setReviewedAt(rejectedAtInJakarta);
+
+        Harvest saved = harvestRepository.save(harvest);
+        return new RejectHarvestResponse(
+                saved.getId(),
+                saved.getStatus(),
+                saved.getRejectionReason(),
+                saved.getRejectedBy(),
+                rejectedAt);
+    }
+
+    private Harvest findPendingHarvestForReview(UUID harvestId, HarvestReviewerContext reviewer) {
+        validateReviewerContext(reviewer);
+
+        Harvest harvest = harvestRepository.findByIdForUpdate(harvestId)
+                .orElseThrow(() -> new HarvestNotFoundException(HarvestErrorKey.HARVEST_NOT_FOUND,
+                        "No harvest found with the given harvestId"));
+
+        if (harvest.getStatus() != HarvestStatus.PENDING) {
+            throw new HarvestConflictException(HarvestErrorKey.HARVEST_ALREADY_REVIEWED,
+                    "Harvest has already been approved or rejected");
+        }
+
+        validateReviewerSupervisesBuruh(reviewer, harvest);
+        return harvest;
+    }
+
+    private void validateReviewerSupervisesBuruh(HarvestReviewerContext reviewer,
+            Harvest harvest) {
+        BuruhMandorAssignment assignment = assignmentRepository.findByBuruhId(
+                        harvest.getBuruhId())
+                .orElseThrow(() -> new HarvestAuthorizationException(
+                        HarvestErrorKey.MANDOR_NOT_AUTHORIZED,
+                        "Authenticated mandor does not supervise this buruh"));
+
+        if (!reviewer.userId().equals(assignment.getMandorId())) {
+            throw new HarvestAuthorizationException(HarvestErrorKey.MANDOR_NOT_AUTHORIZED,
+                    "Authenticated mandor does not supervise this buruh");
+        }
+    }
+
+    private String validateRejectionReason(RejectHarvestRequest request) {
+        if (request == null
+                || request.getRejectionReason() == null
+                || request.getRejectionReason().isBlank()) {
+            throw new HarvestValidationException(
+                    HarvestErrorKey.REJECTION_REASON_REQUIRED,
+                    "rejectionReason is required");
+        }
+
+        return request.getRejectionReason().trim();
     }
 
     private void validateReviewerContext(HarvestReviewerContext reviewer) {
@@ -270,7 +335,8 @@ public class HarvestService {
     }
 
     private void validatePhotos(List<MultipartFile> photos) {
-        if (photos == null || photos.stream().allMatch(photo -> photo == null || photo.isEmpty())) {
+        if (photos == null
+                || photos.stream().allMatch(photo -> photo == null || photo.isEmpty())) {
             throw new HarvestValidationException(HarvestErrorKey.NO_PHOTOS_PROVIDED,
                     "At least one photo is required");
         }
@@ -321,7 +387,7 @@ public class HarvestService {
             Files.copy(file.getInputStream(), target, StandardCopyOption.REPLACE_EXISTING);
 
             HarvestPhoto photo = new HarvestPhoto();
-            photo.setPhotoUrl("/uploads/harvests/" + filename);
+            photo.setPhotoUrl(buildPublicPhotoUrl(filename));
             photo.setOriginalFilename(originalName);
             photo.setContentType(file.getContentType());
             photo.setFileSizeBytes(file.getSize());
@@ -346,22 +412,15 @@ public class HarvestService {
         return Paths.get(originalName).getFileName().toString();
     }
 
-    private HarvestResponse toResponse(Harvest harvest) {
-        HarvestResponse response = new HarvestResponse();
-        response.setId(harvest.getId());
-        response.setBuruhId(harvest.getBuruhId());
-        response.setBuruhName(harvest.getBuruhName());
-        response.setWeightKg(harvest.getWeightKg());
-        response.setNotes(harvest.getNotes());
-        response.setStatus(harvest.getStatus());
-        response.setRejectionReason(harvest.getRejectionReason());
-        response.setHarvestDate(harvest.getHarvestDate());
-        response.setCreatedAt(harvest.getCreatedAt());
-        response.setReviewedAt(harvest.getReviewedAt());
+    private String buildPublicPhotoUrl(String filename) {
+        return publicBaseUrl + "/harvests/" + filename;
+    }
 
-        List<String> photoUrls = new ArrayList<>();
-        harvest.getPhotos().forEach(photo -> photoUrls.add(photo.getPhotoUrl()));
-        response.setPhotoUrls(photoUrls);
-        return response;
+    private String normalizePublicBaseUrl(String configuredBaseUrl) {
+        if (configuredBaseUrl == null || configuredBaseUrl.isBlank()) {
+            return "https://storage.mysawit.id";
+        }
+
+        return configuredBaseUrl.replaceAll("/+$", "");
     }
 }
