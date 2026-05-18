@@ -1,0 +1,5 @@
+ALTER TABLE harvests
+    ADD COLUMN IF NOT EXISTS rejected_by VARCHAR(255);
+
+ALTER TABLE harvests
+    ADD COLUMN IF NOT EXISTS rejected_at TIMESTAMP;

@@ -14,7 +14,6 @@ import id.ac.ui.cs.advprog.mysawit.harvest.dto.HarvestErrorResponse;
 import id.ac.ui.cs.advprog.mysawit.harvest.error.HarvestErrorKey;
 import id.ac.ui.cs.advprog.mysawit.harvest.exception.HarvestApiException;
 import id.ac.ui.cs.advprog.mysawit.harvest.exception.HarvestStorageException;
-import id.ac.ui.cs.advprog.mysawit.harvest.exception.HarvestValidationException;
 
 @RestControllerAdvice
 public class HarvestExceptionHandler {
@@ -29,8 +28,8 @@ public class HarvestExceptionHandler {
                         Instant.now()));
     }
 
-    @ExceptionHandler({BindException.class, HarvestValidationException.class,
-            MissingServletRequestPartException.class, MissingRequestHeaderException.class})
+    @ExceptionHandler({BindException.class, MissingServletRequestPartException.class,
+            MissingRequestHeaderException.class})
     public ResponseEntity<HarvestErrorResponse> handleValidation(Exception ex) {
         HarvestErrorKey errorKey = HarvestErrorKey.VALIDATION_FAILED;
         String message = ex.getMessage();

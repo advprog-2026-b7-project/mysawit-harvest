@@ -27,6 +27,8 @@ import org.springframework.web.multipart.MultipartFile;
 import id.ac.ui.cs.advprog.mysawit.harvest.dto.ApproveHarvestResponse;
 import id.ac.ui.cs.advprog.mysawit.harvest.dto.HarvestCreateRequest;
 import id.ac.ui.cs.advprog.mysawit.harvest.dto.HarvestResponse;
+import id.ac.ui.cs.advprog.mysawit.harvest.dto.RejectHarvestRequest;
+import id.ac.ui.cs.advprog.mysawit.harvest.dto.RejectHarvestResponse;
 import id.ac.ui.cs.advprog.mysawit.harvest.error.HarvestErrorKey;
 import id.ac.ui.cs.advprog.mysawit.harvest.event.HarvestApprovedEvent;
 import id.ac.ui.cs.advprog.mysawit.harvest.exception.HarvestAlreadyExistsException;
@@ -128,27 +130,7 @@ public class HarvestService {
 
     @Transactional
     public ApproveHarvestResponse approveHarvest(UUID harvestId, HarvestReviewerContext reviewer) {
-        validateReviewerContext(reviewer);
-
-        Harvest harvest = harvestRepository.findByIdForUpdate(harvestId)
-                .orElseThrow(() -> new HarvestNotFoundException(HarvestErrorKey.HARVEST_NOT_FOUND,
-                        "No harvest found with the given harvestId"));
-
-        if (harvest.getStatus() != HarvestStatus.PENDING) {
-            throw new HarvestConflictException(HarvestErrorKey.HARVEST_ALREADY_REVIEWED,
-                    "Harvest has already been approved or rejected");
-        }
-
-        BuruhMandorAssignment assignment = assignmentRepository.findByBuruhId(
-                        harvest.getBuruhId())
-                .orElseThrow(() -> new HarvestAuthorizationException(
-                        HarvestErrorKey.MANDOR_NOT_AUTHORIZED,
-                        "Authenticated mandor does not supervise this buruh"));
-
-        if (!reviewer.userId().equals(assignment.getMandorId())) {
-            throw new HarvestAuthorizationException(HarvestErrorKey.MANDOR_NOT_AUTHORIZED,
-                    "Authenticated mandor does not supervise this buruh");
-        }
+        Harvest harvest = findPendingHarvestForReview(harvestId, reviewer);
 
         Instant approvedAt = Instant.now();
         LocalDateTime approvedAtInJakarta = LocalDateTime.ofInstant(approvedAt, JAKARTA_ZONE);
@@ -172,6 +154,74 @@ public class HarvestService {
                 saved.getApprovedBy(),
                 approvedAt,
                 "QUEUED");
+    }
+
+    @Transactional
+    public RejectHarvestResponse rejectHarvest(UUID harvestId,
+            HarvestReviewerContext reviewer,
+            RejectHarvestRequest request) {
+        String rejectionReason = validateRejectionReason(request);
+        Harvest harvest = findPendingHarvestForReview(harvestId, reviewer);
+
+        Instant rejectedAt = Instant.now();
+        LocalDateTime rejectedAtInJakarta = LocalDateTime.ofInstant(rejectedAt, JAKARTA_ZONE);
+        String rejectedBy = resolveReviewerName(reviewer);
+
+        harvest.setStatus(HarvestStatus.REJECTED);
+        harvest.setRejectionReason(rejectionReason);
+        harvest.setRejectedBy(rejectedBy);
+        harvest.setRejectedAt(rejectedAtInJakarta);
+        harvest.setReviewedAt(rejectedAtInJakarta);
+
+        Harvest saved = harvestRepository.save(harvest);
+        return new RejectHarvestResponse(
+                saved.getId(),
+                saved.getStatus(),
+                saved.getRejectionReason(),
+                saved.getRejectedBy(),
+                rejectedAt);
+    }
+
+    private Harvest findPendingHarvestForReview(UUID harvestId, HarvestReviewerContext reviewer) {
+        validateReviewerContext(reviewer);
+
+        Harvest harvest = harvestRepository.findByIdForUpdate(harvestId)
+                .orElseThrow(() -> new HarvestNotFoundException(HarvestErrorKey.HARVEST_NOT_FOUND,
+                        "No harvest found with the given harvestId"));
+
+        if (harvest.getStatus() != HarvestStatus.PENDING) {
+            throw new HarvestConflictException(HarvestErrorKey.HARVEST_ALREADY_REVIEWED,
+                    "Harvest has already been approved or rejected");
+        }
+
+        validateReviewerSupervisesBuruh(reviewer, harvest);
+        return harvest;
+    }
+
+    private void validateReviewerSupervisesBuruh(HarvestReviewerContext reviewer,
+            Harvest harvest) {
+        BuruhMandorAssignment assignment = assignmentRepository.findByBuruhId(
+                        harvest.getBuruhId())
+                .orElseThrow(() -> new HarvestAuthorizationException(
+                        HarvestErrorKey.MANDOR_NOT_AUTHORIZED,
+                        "Authenticated mandor does not supervise this buruh"));
+
+        if (!reviewer.userId().equals(assignment.getMandorId())) {
+            throw new HarvestAuthorizationException(HarvestErrorKey.MANDOR_NOT_AUTHORIZED,
+                    "Authenticated mandor does not supervise this buruh");
+        }
+    }
+
+    private String validateRejectionReason(RejectHarvestRequest request) {
+        if (request == null
+                || request.getRejectionReason() == null
+                || request.getRejectionReason().isBlank()) {
+            throw new HarvestValidationException(
+                    HarvestErrorKey.REJECTION_REASON_REQUIRED,
+                    "rejectionReason is required");
+        }
+
+        return request.getRejectionReason().trim();
     }
 
     private void validateReviewerContext(HarvestReviewerContext reviewer) {
@@ -285,7 +335,8 @@ public class HarvestService {
     }
 
     private void validatePhotos(List<MultipartFile> photos) {
-        if (photos == null || photos.stream().allMatch(photo -> photo == null || photo.isEmpty())) {
+        if (photos == null
+                || photos.stream().allMatch(photo -> photo == null || photo.isEmpty())) {
             throw new HarvestValidationException(HarvestErrorKey.NO_PHOTOS_PROVIDED,
                     "At least one photo is required");
         }

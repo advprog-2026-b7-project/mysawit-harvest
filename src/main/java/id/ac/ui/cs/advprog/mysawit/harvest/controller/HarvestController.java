@@ -17,6 +17,7 @@ import org.springframework.web.bind.annotation.ModelAttribute;
 import org.springframework.web.bind.annotation.PatchMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestHeader;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
@@ -29,6 +30,8 @@ import id.ac.ui.cs.advprog.mysawit.harvest.dto.ApproveHarvestResponse;
 import id.ac.ui.cs.advprog.mysawit.harvest.dto.HarvestCreateRequest;
 import id.ac.ui.cs.advprog.mysawit.harvest.dto.HarvestPageResponse;
 import id.ac.ui.cs.advprog.mysawit.harvest.dto.HarvestResponse;
+import id.ac.ui.cs.advprog.mysawit.harvest.dto.RejectHarvestRequest;
+import id.ac.ui.cs.advprog.mysawit.harvest.dto.RejectHarvestResponse;
 import id.ac.ui.cs.advprog.mysawit.harvest.security.HarvestJwtClaimsResolver;
 import id.ac.ui.cs.advprog.mysawit.harvest.service.HarvestHistoryService;
 import id.ac.ui.cs.advprog.mysawit.harvest.service.HarvestService;
@@ -93,6 +96,19 @@ public class HarvestController {
         ApproveHarvestResponse response = harvestService.approveHarvest(
                 harvestId,
                 claimsResolver.resolveMandor(authorization));
+
+        return ResponseEntity.ok(new ApiSuccessResponse<>("success", response));
+    }
+
+    @PatchMapping(value = "/{harvestId}/reject", produces = MediaType.APPLICATION_JSON_VALUE)
+    public ResponseEntity<ApiSuccessResponse<RejectHarvestResponse>> rejectHarvest(
+            @PathVariable UUID harvestId,
+            @RequestHeader(HttpHeaders.AUTHORIZATION) String authorization,
+            @RequestBody(required = false) RejectHarvestRequest request) {
+        RejectHarvestResponse response = harvestService.rejectHarvest(
+                harvestId,
+                claimsResolver.resolveMandor(authorization),
+                request);
 
         return ResponseEntity.ok(new ApiSuccessResponse<>("success", response));
     }
