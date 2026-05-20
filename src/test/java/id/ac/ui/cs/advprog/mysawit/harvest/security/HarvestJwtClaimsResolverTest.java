@@ -41,6 +41,39 @@ class HarvestJwtClaimsResolverTest {
     }
 
     @Test
+    void resolveSubmission_shouldReadMysawitAuthTokenClaims() {
+        String token = Jwts.builder()
+                .subject("buruh-1")
+                .claim("email", "buruh@mysawit.com")
+                .claim("role", "BURUH")
+                .claim("username", "buruh01")
+                .claim("nama", "Siti Aminah")
+                .signWith(secretKey)
+                .compact();
+
+        HarvestSubmissionContext context = resolver.resolve("Bearer " + token);
+
+        assertEquals("buruh-1", context.buruhId());
+        assertEquals("BURUH", context.role());
+        assertEquals("Siti Aminah", context.buruhName());
+    }
+
+    @Test
+    void resolveMandor_shouldPreferMysawitAuthNamaClaim() {
+        String token = Jwts.builder()
+                .subject("mandor-1")
+                .claim("role", "MANDOR")
+                .claim("nama", "Mandor Auth")
+                .claim("name", "Mandor Legacy")
+                .signWith(secretKey)
+                .compact();
+
+        HarvestReviewerContext context = resolver.resolveMandor("Bearer " + token);
+
+        assertEquals("Mandor Auth", context.name());
+    }
+
+    @Test
     void resolveViewer_shouldRejectTamperedToken() {
         String token = Jwts.builder()
                 .subject("admin-1")

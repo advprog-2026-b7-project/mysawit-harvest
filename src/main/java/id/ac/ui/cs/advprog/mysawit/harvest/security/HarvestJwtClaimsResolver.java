@@ -50,11 +50,14 @@ public class HarvestJwtClaimsResolver {
                 asString(claims.get("plantation_id")));
 
         String buruhName = firstNonBlank(
+                asString(claims.get("nama")),
                 asString(claims.get("name")),
                 asString(claims.get("fullName")),
+                asString(claims.get("username")),
                 asString(claims.get("buruhName")));
 
-        return new HarvestSubmissionContext(buruhId, buruhName, plantationId, role);
+        return new HarvestSubmissionContext(buruhId, buruhName, plantationId,
+                role, authorizationHeader);
     }
 
     public HarvestViewerContext resolveViewer(String authorizationHeader) {
@@ -77,7 +80,7 @@ public class HarvestJwtClaimsResolver {
             throw new HarvestAuthenticationException("JWT is missing a subject/user identifier");
         }
 
-        return new HarvestViewerContext(userId, role.toUpperCase());
+        return new HarvestViewerContext(userId, role.toUpperCase(), authorizationHeader);
     }
 
     public HarvestReviewerContext resolveMandor(String authorizationHeader) {
@@ -98,11 +101,13 @@ public class HarvestJwtClaimsResolver {
         }
 
         String name = firstNonBlank(
+                asString(claims.get("nama")),
                 asString(claims.get("name")),
                 asString(claims.get("fullName")),
+                asString(claims.get("username")),
                 asString(claims.get("mandorName")));
 
-        return new HarvestReviewerContext(userId, role.toUpperCase(), name);
+        return new HarvestReviewerContext(userId, role.toUpperCase(), name, authorizationHeader);
     }
 
     private Map<String, Object> decodeClaims(String authorizationHeader) {
