@@ -1,22 +1,17 @@
-FROM eclipse-temurin:21-jdk-alpine AS builder
+FROM gradle:8.10.2-jdk21-alpine AS build
 
-WORKDIR /workspace
-COPY gradlew settings.gradle.kts build.gradle.kts ./
-COPY gradle ./gradle
-COPY config ./config
-COPY src ./src
+WORKDIR /app
 
-RUN chmod +x ./gradlew && ./gradlew bootJar --no-daemon
+COPY . .
+
+RUN gradle clean bootJar --no-daemon
 
 FROM eclipse-temurin:21-jre-alpine
 
 WORKDIR /app
-RUN addgroup -S app && adduser -S app -G app && mkdir -p /data/harvest/uploads \
-    && chown -R app:app /app /data
 
-COPY --from=builder /workspace/build/libs/*.jar app.jar
+COPY --from=build /app/build/libs/*.jar app.jar
 
-USER app
 EXPOSE 8080
 
 ENTRYPOINT ["java", "-jar", "app.jar"]
