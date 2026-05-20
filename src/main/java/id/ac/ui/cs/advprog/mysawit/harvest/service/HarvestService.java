@@ -10,6 +10,7 @@ import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.ZoneId;
 import java.util.List;
+import java.util.Optional;
 import java.util.Set;
 import java.util.UUID;
 
@@ -37,6 +38,7 @@ import id.ac.ui.cs.advprog.mysawit.harvest.exception.HarvestConflictException;
 import id.ac.ui.cs.advprog.mysawit.harvest.exception.HarvestNotFoundException;
 import id.ac.ui.cs.advprog.mysawit.harvest.exception.HarvestStorageException;
 import id.ac.ui.cs.advprog.mysawit.harvest.exception.HarvestValidationException;
+import id.ac.ui.cs.advprog.mysawit.harvest.gateway.AssignmentGateway;
 import id.ac.ui.cs.advprog.mysawit.harvest.model.BuruhMandorAssignment;
 import id.ac.ui.cs.advprog.mysawit.harvest.model.Harvest;
 import id.ac.ui.cs.advprog.mysawit.harvest.model.HarvestPhoto;
@@ -59,6 +61,7 @@ public class HarvestService {
 
     private final HarvestRepository harvestRepository;
     private final BuruhMandorAssignmentRepository assignmentRepository;
+    private final AssignmentGateway assignmentGateway;
     private final ApplicationEventPublisher eventPublisher;
     private final Path storageRoot;
     private final String publicBaseUrl;
@@ -66,12 +69,14 @@ public class HarvestService {
     @Autowired
     public HarvestService(HarvestRepository harvestRepository,
             BuruhMandorAssignmentRepository assignmentRepository,
+            AssignmentGateway assignmentGateway,
             ApplicationEventPublisher eventPublisher,
             @Value("${storage.harvest.dir:uploads/harvests}") String storageDir,
             @Value("${storage.harvest.public-base-url:https://storage.mysawit.id}")
             String publicBaseUrl) {
         this.harvestRepository = harvestRepository;
         this.assignmentRepository = assignmentRepository;
+        this.assignmentGateway = assignmentGateway;
         this.eventPublisher = eventPublisher;
         this.storageRoot = Paths.get(storageDir).toAbsolutePath().normalize();
         this.publicBaseUrl = normalizePublicBaseUrl(publicBaseUrl);
@@ -80,16 +85,26 @@ public class HarvestService {
     HarvestService(HarvestRepository harvestRepository,
             BuruhMandorAssignmentRepository assignmentRepository,
             String storageDir) {
-        this(harvestRepository, assignmentRepository, null, storageDir);
+        this(harvestRepository, assignmentRepository, noopAssignmentGateway(), null, storageDir);
     }
 
     HarvestService(HarvestRepository harvestRepository,
             BuruhMandorAssignmentRepository assignmentRepository,
             ApplicationEventPublisher eventPublisher,
             String storageDir) {
+        this(harvestRepository, assignmentRepository, noopAssignmentGateway(),
+                eventPublisher, storageDir);
+    }
+
+    HarvestService(HarvestRepository harvestRepository,
+            BuruhMandorAssignmentRepository assignmentRepository,
+            AssignmentGateway assignmentGateway,
+            ApplicationEventPublisher eventPublisher,
+            String storageDir) {
         this(
                 harvestRepository,
                 assignmentRepository,
+                assignmentGateway,
                 eventPublisher,
                 storageDir,
                 "https://storage.mysawit.id");
@@ -200,8 +215,9 @@ public class HarvestService {
 
     private void validateReviewerSupervisesBuruh(HarvestReviewerContext reviewer,
             Harvest harvest) {
-        BuruhMandorAssignment assignment = assignmentRepository.findByBuruhId(
-                        harvest.getBuruhId())
+        BuruhMandorAssignment assignment = findAssignmentByBuruhId(
+                harvest.getBuruhId(),
+                reviewer.authorizationHeader())
                 .orElseThrow(() -> new HarvestAuthorizationException(
                         HarvestErrorKey.MANDOR_NOT_AUTHORIZED,
                         "Authenticated mandor does not supervise this buruh"));
@@ -284,12 +300,26 @@ public class HarvestService {
                     "Caller does not have the BURUH role");
         }
 
-        return assignmentRepository.findByBuruhId(context.buruhId())
+        return findAssignmentByBuruhId(context.buruhId(), context.authorizationHeader())
                 .filter(assignment -> assignment.getMandorId() != null
                         && !assignment.getMandorId().isBlank())
                 .orElseThrow(() -> new HarvestAuthorizationException(
                         HarvestErrorKey.BURUH_NOT_ASSIGNED_TO_MANDOR,
                         "Buruh is not assigned to a mandor"));
+    }
+
+    private Optional<BuruhMandorAssignment> findAssignmentByBuruhId(
+            String buruhId,
+            String authorizationHeader) {
+        Optional<BuruhMandorAssignment> local = assignmentRepository.findByBuruhId(buruhId);
+        if (local.isPresent()) {
+            return local;
+        }
+
+        Optional<BuruhMandorAssignment> remote =
+                assignmentGateway.findByBuruhId(buruhId, authorizationHeader);
+        remote.ifPresent(assignmentRepository::save);
+        return remote;
     }
 
     private String resolveBuruhName(HarvestSubmissionContext context,
@@ -422,5 +452,23 @@ public class HarvestService {
         }
 
         return configuredBaseUrl.replaceAll("/+$", "");
+    }
+
+    private static AssignmentGateway noopAssignmentGateway() {
+        return new AssignmentGateway() {
+            @Override
+            public Optional<BuruhMandorAssignment> findByBuruhId(
+                    String buruhId,
+                    String authorizationHeader) {
+                return Optional.empty();
+            }
+
+            @Override
+            public List<String> findBuruhIdsByMandorId(
+                    String mandorId,
+                    String authorizationHeader) {
+                return List.of();
+            }
+        };
     }
 }

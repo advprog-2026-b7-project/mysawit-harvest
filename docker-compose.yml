@@ -14,6 +14,8 @@ services:
       SPRING_DATASOURCE_URL: jdbc:postgresql://host.docker.internal:5435/mysawit_harvest
       SPRING_DATASOURCE_USERNAME: postgres
       SPRING_DATASOURCE_PASSWORD: postgres
+      AUTH_SERVICE_BASE_URL: ${AUTH_SERVICE_BASE_URL:-http://host.docker.internal:8080}
+      JWT_SECRET: ${JWT_SECRET:-mysawit-secret}
     ports:
       - "8083:8080"  # Port 8083 untuk harvest service
     volumes:

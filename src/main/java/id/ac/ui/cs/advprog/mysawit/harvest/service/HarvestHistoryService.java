@@ -3,7 +3,9 @@ package id.ac.ui.cs.advprog.mysawit.harvest.service;
 import java.time.LocalDate;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Optional;
 
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.domain.Specification;
@@ -17,6 +19,7 @@ import id.ac.ui.cs.advprog.mysawit.harvest.error.HarvestErrorKey;
 import id.ac.ui.cs.advprog.mysawit.harvest.exception.HarvestAuthorizationException;
 import id.ac.ui.cs.advprog.mysawit.harvest.exception.HarvestNotFoundException;
 import id.ac.ui.cs.advprog.mysawit.harvest.exception.HarvestValidationException;
+import id.ac.ui.cs.advprog.mysawit.harvest.gateway.AssignmentGateway;
 import id.ac.ui.cs.advprog.mysawit.harvest.model.BuruhMandorAssignment;
 import id.ac.ui.cs.advprog.mysawit.harvest.model.Harvest;
 import id.ac.ui.cs.advprog.mysawit.harvest.model.HarvestStatus;
@@ -31,11 +34,20 @@ public class HarvestHistoryService {
 
     private final HarvestRepository harvestRepository;
     private final BuruhMandorAssignmentRepository assignmentRepository;
+    private final AssignmentGateway assignmentGateway;
 
+    @Autowired
     public HarvestHistoryService(HarvestRepository harvestRepository,
-            BuruhMandorAssignmentRepository assignmentRepository) {
+            BuruhMandorAssignmentRepository assignmentRepository,
+            AssignmentGateway assignmentGateway) {
         this.harvestRepository = harvestRepository;
         this.assignmentRepository = assignmentRepository;
+        this.assignmentGateway = assignmentGateway;
+    }
+
+    HarvestHistoryService(HarvestRepository harvestRepository,
+            BuruhMandorAssignmentRepository assignmentRepository) {
+        this(harvestRepository, assignmentRepository, noopAssignmentGateway());
     }
 
     @Transactional(readOnly = true)
@@ -63,8 +75,7 @@ public class HarvestHistoryService {
         if (viewer.role().equals("BURUH")) {
             spec = spec.and((root, query, cb) -> cb.equal(root.get("buruhId"), viewer.userId()));
         } else if (viewer.role().equals("MANDOR")) {
-            List<String> supervisedBuruhIds = assignmentRepository.findBuruhIdsByMandorId(
-                    viewer.userId());
+            List<String> supervisedBuruhIds = findBuruhIdsByMandorId(viewer);
             if (supervisedBuruhIds.isEmpty()) {
                 return new HarvestPageResponse(
                         List.of(),
@@ -91,9 +102,11 @@ public class HarvestHistoryService {
         HarvestStatus parsedStatus = parseStatus(status);
         validatePageSize(pageable);
 
-        BuruhMandorAssignment targetAssignment = assignmentRepository.findByBuruhId(buruhId)
+        BuruhMandorAssignment targetAssignment = findAssignmentByBuruhId(
+                buruhId,
+                viewer.authorizationHeader())
                 .orElseGet(() -> {
-                    if (assignmentRepository.existsByMandorId(buruhId)) {
+                    if (existsByMandorId(buruhId, viewer.authorizationHeader())) {
                         throw new HarvestValidationException(HarvestErrorKey.USER_NOT_BURUH,
                                 "The specified user exists but is not BURUH");
                     }
@@ -111,6 +124,38 @@ public class HarvestHistoryService {
                 .and((root, query, cb) -> cb.equal(root.get("buruhId"), buruhId));
 
         return toPageResponse(harvestRepository.findAll(spec, pageable));
+    }
+
+    private Optional<BuruhMandorAssignment> findAssignmentByBuruhId(
+            String buruhId,
+            String authorizationHeader) {
+        Optional<BuruhMandorAssignment> local = assignmentRepository.findByBuruhId(buruhId);
+        if (local.isPresent()) {
+            return local;
+        }
+
+        Optional<BuruhMandorAssignment> remote =
+                assignmentGateway.findByBuruhId(buruhId, authorizationHeader);
+        remote.ifPresent(assignmentRepository::save);
+        return remote;
+    }
+
+    private List<String> findBuruhIdsByMandorId(HarvestViewerContext viewer) {
+        List<String> local = assignmentRepository.findBuruhIdsByMandorId(viewer.userId());
+        if (!local.isEmpty()) {
+            return local;
+        }
+
+        return assignmentGateway.findBuruhIdsByMandorId(
+                viewer.userId(),
+                viewer.authorizationHeader());
+    }
+
+    private boolean existsByMandorId(String userId, String authorizationHeader) {
+        if (assignmentRepository.existsByMandorId(userId)) {
+            return true;
+        }
+        return !assignmentGateway.findBuruhIdsByMandorId(userId, authorizationHeader).isEmpty();
     }
 
     private void validateViewerRole(HarvestViewerContext viewer, String... allowedRoles) {
@@ -204,5 +249,23 @@ public class HarvestHistoryService {
                 page.getSize(),
                 page.getTotalElements(),
                 page.getTotalPages());
+    }
+
+    private static AssignmentGateway noopAssignmentGateway() {
+        return new AssignmentGateway() {
+            @Override
+            public Optional<BuruhMandorAssignment> findByBuruhId(
+                    String buruhId,
+                    String authorizationHeader) {
+                return Optional.empty();
+            }
+
+            @Override
+            public List<String> findBuruhIdsByMandorId(
+                    String mandorId,
+                    String authorizationHeader) {
+                return List.of();
+            }
+        };
     }
 }
