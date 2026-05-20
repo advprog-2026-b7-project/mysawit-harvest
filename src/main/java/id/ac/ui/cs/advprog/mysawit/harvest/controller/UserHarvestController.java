@@ -8,7 +8,6 @@ import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.validation.annotation.Validated;
-import org.springframework.web.bind.annotation.CrossOrigin;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.RequestHeader;
@@ -21,7 +20,6 @@ import id.ac.ui.cs.advprog.mysawit.harvest.dto.HarvestPageResponse;
 import id.ac.ui.cs.advprog.mysawit.harvest.security.HarvestJwtClaimsResolver;
 import id.ac.ui.cs.advprog.mysawit.harvest.service.HarvestHistoryService;
 
-@CrossOrigin(origins = "http://localhost:3001")
 @RestController
 @Validated
 @RequestMapping("/api/v1/users")
