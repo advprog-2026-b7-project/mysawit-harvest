@@ -95,6 +95,7 @@ public class AuthServiceAssignmentGateway implements AssignmentGateway {
         assignment.setBuruhId(response.buruhId());
         assignment.setMandorId(response.mandorId());
         assignment.setBuruhName(response.buruhNama());
+        assignment.setPlantationId(response.plantationId());
         assignment.setAssignedAt(response.assignedAt() != null
                 ? response.assignedAt()
                 : LocalDateTime.now());
@@ -120,6 +121,7 @@ public class AuthServiceAssignmentGateway implements AssignmentGateway {
             String buruhNama,
             String mandorId,
             String mandorNama,
+            String plantationId,
             LocalDateTime assignedAt) {
     }
 }
