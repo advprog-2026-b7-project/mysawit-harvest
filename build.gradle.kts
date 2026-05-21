@@ -64,6 +64,7 @@ tasks.register<Test>("functionalTest") {
 
     filter {
         includeTestsMatching("*FunctionalTest")
+        isFailOnNoMatchingTests = false
     }
 }
 
