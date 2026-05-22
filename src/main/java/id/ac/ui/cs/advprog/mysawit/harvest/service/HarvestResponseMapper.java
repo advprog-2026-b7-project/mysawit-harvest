@@ -16,6 +16,7 @@ final class HarvestResponseMapper {
     static HarvestResponse toResponse(Harvest harvest) {
         HarvestResponse response = new HarvestResponse();
         response.setId(harvest.getId());
+        response.setPlantationId(harvest.getPlantationId());
         response.setBuruhId(harvest.getBuruhId());
         response.setBuruhName(harvest.getBuruhName());
         response.setWeightKg(harvest.getWeightKg());

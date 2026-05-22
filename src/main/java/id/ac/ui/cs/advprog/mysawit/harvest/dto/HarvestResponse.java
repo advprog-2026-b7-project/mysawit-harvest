@@ -11,6 +11,7 @@ import id.ac.ui.cs.advprog.mysawit.harvest.model.HarvestStatus;
 public class HarvestResponse {
 
     private UUID id;
+    private String plantationId;
     private String buruhId;
     private String buruhName;
     private BigDecimal weightKg;
@@ -28,6 +29,14 @@ public class HarvestResponse {
 
     public void setId(UUID id) {
         this.id = id;
+    }
+
+    public String getPlantationId() {
+        return plantationId;
+    }
+
+    public void setPlantationId(String plantationId) {
+        this.plantationId = plantationId;
     }
 
     public String getBuruhId() {

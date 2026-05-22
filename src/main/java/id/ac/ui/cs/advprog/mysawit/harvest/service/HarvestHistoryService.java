@@ -4,6 +4,7 @@ import java.time.LocalDate;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
+import java.util.UUID;
 
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.data.domain.Page;
@@ -48,6 +49,14 @@ public class HarvestHistoryService {
     HarvestHistoryService(HarvestRepository harvestRepository,
             BuruhMandorAssignmentRepository assignmentRepository) {
         this(harvestRepository, assignmentRepository, noopAssignmentGateway());
+    }
+
+    @Transactional(readOnly = true)
+    public HarvestResponse getHarvestById(UUID harvestId) {
+        Harvest harvest = harvestRepository.findById(harvestId)
+                .orElseThrow(() -> new HarvestNotFoundException(
+                        HarvestErrorKey.HARVEST_NOT_FOUND, "Harvest not found: " + harvestId));
+        return HarvestResponseMapper.toResponse(harvest);
     }
 
     @Transactional(readOnly = true)

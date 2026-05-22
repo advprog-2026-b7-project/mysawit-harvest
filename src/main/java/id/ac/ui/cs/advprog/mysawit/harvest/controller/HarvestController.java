@@ -87,6 +87,15 @@ public class HarvestController {
         return ResponseEntity.ok(new ApiSuccessResponse<>("success", response));
     }
 
+    @GetMapping(value = "/{harvestId}", produces = MediaType.APPLICATION_JSON_VALUE)
+    public ResponseEntity<ApiSuccessResponse<HarvestResponse>> getHarvestById(
+            @PathVariable UUID harvestId,
+            @RequestHeader(HttpHeaders.AUTHORIZATION) String authorization) {
+        claimsResolver.resolveViewer(authorization);
+        HarvestResponse response = harvestHistoryService.getHarvestById(harvestId);
+        return ResponseEntity.ok(new ApiSuccessResponse<>("success", response));
+    }
+
     @PatchMapping(value = "/{harvestId}/approve", produces = MediaType.APPLICATION_JSON_VALUE)
     public ResponseEntity<ApiSuccessResponse<ApproveHarvestResponse>> approveHarvest(
             @PathVariable UUID harvestId,
