@@ -21,13 +21,9 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 import org.junit.jupiter.api.extension.ExtendWith;
-import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
-import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.mock.web.MockMultipartFile;
-import org.springframework.transaction.support.TransactionSynchronization;
-import org.springframework.transaction.support.TransactionSynchronizationManager;
 
 import id.ac.ui.cs.advprog.mysawit.harvest.dto.ApproveHarvestResponse;
 import id.ac.ui.cs.advprog.mysawit.harvest.dto.HarvestCreateRequest;
@@ -35,7 +31,6 @@ import id.ac.ui.cs.advprog.mysawit.harvest.dto.HarvestResponse;
 import id.ac.ui.cs.advprog.mysawit.harvest.dto.RejectHarvestRequest;
 import id.ac.ui.cs.advprog.mysawit.harvest.dto.RejectHarvestResponse;
 import id.ac.ui.cs.advprog.mysawit.harvest.error.HarvestErrorKey;
-import id.ac.ui.cs.advprog.mysawit.harvest.event.HarvestApprovedEvent;
 import id.ac.ui.cs.advprog.mysawit.harvest.exception.HarvestAlreadyExistsException;
 import id.ac.ui.cs.advprog.mysawit.harvest.exception.HarvestAuthorizationException;
 import id.ac.ui.cs.advprog.mysawit.harvest.exception.HarvestConflictException;
@@ -59,9 +54,6 @@ class HarvestServiceTest {
 
     @Mock
     private BuruhMandorAssignmentRepository assignmentRepository;
-
-    @Mock
-    private ApplicationEventPublisher eventPublisher;
 
     @TempDir
     Path tempDir;
@@ -325,72 +317,6 @@ class HarvestServiceTest {
                         new HarvestReviewerContext("mandor-1", "MANDOR", "Budi Santoso")));
 
         assertEquals(HarvestErrorKey.HARVEST_ALREADY_REVIEWED, exception.getErrorKey());
-    }
-
-    @Test
-    void approveHarvest_shouldPublishHarvestApprovedEvent() {
-        UUID harvestId = UUID.fromString("77777777-7777-7777-7777-777777777777");
-        HarvestService serviceWithEvents = new HarvestService(
-                harvestRepository,
-                assignmentRepository,
-                eventPublisher,
-                tempDir.toString());
-
-        when(harvestRepository.findByIdForUpdate(harvestId))
-                .thenReturn(Optional.of(pendingHarvest(harvestId)));
-        when(assignmentRepository.findByBuruhId("buruh-1"))
-                .thenReturn(Optional.of(validAssignment()));
-        when(harvestRepository.save(any(Harvest.class)))
-                .thenAnswer(invocation -> invocation.getArgument(0));
-
-        serviceWithEvents.approveHarvest(
-                harvestId,
-                new HarvestReviewerContext("mandor-1", "MANDOR", "Budi Santoso"));
-
-        ArgumentCaptor<HarvestApprovedEvent> eventCaptor = ArgumentCaptor.forClass(
-                HarvestApprovedEvent.class);
-        verify(eventPublisher).publishEvent(eventCaptor.capture());
-
-        HarvestApprovedEvent event = eventCaptor.getValue();
-        assertEquals(harvestId, event.harvestId());
-        assertEquals("buruh-1", event.buruhId());
-        assertEquals(new BigDecimal("120.50"), event.weightKg());
-        assertNotNull(event.approvedAt());
-    }
-
-    @Test
-    void approveHarvest_shouldPublishEventAfterTransactionCommit() {
-        UUID harvestId = UUID.fromString("88888888-8888-8888-8888-888888888888");
-        HarvestService serviceWithEvents = new HarvestService(
-                harvestRepository,
-                assignmentRepository,
-                eventPublisher,
-                tempDir.toString());
-
-        when(harvestRepository.findByIdForUpdate(harvestId))
-                .thenReturn(Optional.of(pendingHarvest(harvestId)));
-        when(assignmentRepository.findByBuruhId("buruh-1"))
-                .thenReturn(Optional.of(validAssignment()));
-        when(harvestRepository.save(any(Harvest.class)))
-                .thenAnswer(invocation -> invocation.getArgument(0));
-
-        TransactionSynchronizationManager.initSynchronization();
-        try {
-            serviceWithEvents.approveHarvest(
-                    harvestId,
-                    new HarvestReviewerContext("mandor-1", "MANDOR", "Budi Santoso"));
-
-            verify(eventPublisher, never()).publishEvent(any(HarvestApprovedEvent.class));
-
-            for (TransactionSynchronization synchronization
-                    : TransactionSynchronizationManager.getSynchronizations()) {
-                synchronization.afterCommit();
-            }
-
-            verify(eventPublisher).publishEvent(any(HarvestApprovedEvent.class));
-        } finally {
-            TransactionSynchronizationManager.clearSynchronization();
-        }
     }
 
     @Test

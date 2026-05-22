@@ -17,7 +17,7 @@ services:
       AUTH_SERVICE_BASE_URL: ${AUTH_SERVICE_BASE_URL:-http://host.docker.internal:8080}
       JWT_SECRET: ${JWT_SECRET:-mysawit-secret}
     ports:
-      - "8083:8080"  # Port 8083 untuk harvest service
+      - "8083:8083"  # Port 8083 untuk harvest service
     volumes:
       - ./uploads/harvests:/app/uploads/harvests
 

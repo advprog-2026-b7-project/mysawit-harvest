@@ -16,7 +16,6 @@ import java.util.UUID;
 
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
-import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.http.MediaType;
 import org.springframework.stereotype.Service;
@@ -31,7 +30,6 @@ import id.ac.ui.cs.advprog.mysawit.harvest.dto.HarvestResponse;
 import id.ac.ui.cs.advprog.mysawit.harvest.dto.RejectHarvestRequest;
 import id.ac.ui.cs.advprog.mysawit.harvest.dto.RejectHarvestResponse;
 import id.ac.ui.cs.advprog.mysawit.harvest.error.HarvestErrorKey;
-import id.ac.ui.cs.advprog.mysawit.harvest.event.HarvestApprovedEvent;
 import id.ac.ui.cs.advprog.mysawit.harvest.exception.HarvestAlreadyExistsException;
 import id.ac.ui.cs.advprog.mysawit.harvest.exception.HarvestAuthorizationException;
 import id.ac.ui.cs.advprog.mysawit.harvest.exception.HarvestConflictException;
@@ -39,6 +37,7 @@ import id.ac.ui.cs.advprog.mysawit.harvest.exception.HarvestNotFoundException;
 import id.ac.ui.cs.advprog.mysawit.harvest.exception.HarvestStorageException;
 import id.ac.ui.cs.advprog.mysawit.harvest.exception.HarvestValidationException;
 import id.ac.ui.cs.advprog.mysawit.harvest.gateway.AssignmentGateway;
+import id.ac.ui.cs.advprog.mysawit.harvest.gateway.PaymentPayrollClient;
 import id.ac.ui.cs.advprog.mysawit.harvest.model.BuruhMandorAssignment;
 import id.ac.ui.cs.advprog.mysawit.harvest.model.Harvest;
 import id.ac.ui.cs.advprog.mysawit.harvest.model.HarvestPhoto;
@@ -62,7 +61,7 @@ public class HarvestService {
     private final HarvestRepository harvestRepository;
     private final BuruhMandorAssignmentRepository assignmentRepository;
     private final AssignmentGateway assignmentGateway;
-    private final ApplicationEventPublisher eventPublisher;
+    private final PaymentPayrollClient paymentPayrollClient;
     private final Path storageRoot;
     private final String publicBaseUrl;
 
@@ -70,14 +69,14 @@ public class HarvestService {
     public HarvestService(HarvestRepository harvestRepository,
             BuruhMandorAssignmentRepository assignmentRepository,
             AssignmentGateway assignmentGateway,
-            ApplicationEventPublisher eventPublisher,
+            PaymentPayrollClient paymentPayrollClient,
             @Value("${storage.harvest.dir:uploads/harvests}") String storageDir,
             @Value("${storage.harvest.public-base-url:https://storage.mysawit.id}")
             String publicBaseUrl) {
         this.harvestRepository = harvestRepository;
         this.assignmentRepository = assignmentRepository;
         this.assignmentGateway = assignmentGateway;
-        this.eventPublisher = eventPublisher;
+        this.paymentPayrollClient = paymentPayrollClient;
         this.storageRoot = Paths.get(storageDir).toAbsolutePath().normalize();
         this.publicBaseUrl = normalizePublicBaseUrl(publicBaseUrl);
     }
@@ -85,27 +84,19 @@ public class HarvestService {
     HarvestService(HarvestRepository harvestRepository,
             BuruhMandorAssignmentRepository assignmentRepository,
             String storageDir) {
-        this(harvestRepository, assignmentRepository, noopAssignmentGateway(), null, storageDir);
-    }
-
-    HarvestService(HarvestRepository harvestRepository,
-            BuruhMandorAssignmentRepository assignmentRepository,
-            ApplicationEventPublisher eventPublisher,
-            String storageDir) {
-        this(harvestRepository, assignmentRepository, noopAssignmentGateway(),
-                eventPublisher, storageDir);
+        this(harvestRepository, assignmentRepository, noopAssignmentGateway(), null,
+                storageDir, "https://storage.mysawit.id");
     }
 
     HarvestService(HarvestRepository harvestRepository,
             BuruhMandorAssignmentRepository assignmentRepository,
             AssignmentGateway assignmentGateway,
-            ApplicationEventPublisher eventPublisher,
             String storageDir) {
         this(
                 harvestRepository,
                 assignmentRepository,
                 assignmentGateway,
-                eventPublisher,
+                null,
                 storageDir,
                 "https://storage.mysawit.id");
     }
@@ -157,11 +148,7 @@ public class HarvestService {
         harvest.setReviewedAt(approvedAtInJakarta);
 
         Harvest saved = harvestRepository.save(harvest);
-        publishHarvestApprovedEvent(new HarvestApprovedEvent(
-                saved.getId(),
-                saved.getBuruhId(),
-                saved.getWeightKg(),
-                approvedAt));
+        createPayrollAfterCommit(saved, reviewer.authorizationHeader());
 
         return new ApproveHarvestResponse(
                 saved.getId(),
@@ -259,23 +246,21 @@ public class HarvestService {
         return reviewer.userId();
     }
 
-    private void publishHarvestApprovedEvent(HarvestApprovedEvent event) {
-        if (eventPublisher == null) {
+    private void createPayrollAfterCommit(Harvest harvest, String authorizationHeader) {
+        if (paymentPayrollClient == null) {
             return;
         }
-
         if (TransactionSynchronizationManager.isSynchronizationActive()) {
             TransactionSynchronizationManager.registerSynchronization(
                     new TransactionSynchronization() {
                 @Override
                 public void afterCommit() {
-                    eventPublisher.publishEvent(event);
+                    paymentPayrollClient.createHarvestPayroll(harvest, authorizationHeader);
                 }
             });
             return;
         }
-
-        eventPublisher.publishEvent(event);
+        paymentPayrollClient.createHarvestPayroll(harvest, authorizationHeader);
     }
 
     private void validateRequest(HarvestCreateRequest request) {
