@@ -2,9 +2,9 @@ name: CI
 
 on:
   push:
-    branches: ["main"]
+    branches: ["main", "staging"]
   pull_request:
-    branches: ["main"]
+    branches: ["main", "staging"]
 
 jobs:
   build:
@@ -39,20 +39,14 @@ jobs:
         run: ./gradlew jacocoTestReport
 
       - name: Cache SonarCloud packages
-        uses: actions/cache@v3
+        uses: actions/cache@v4
         with:
           path: ~/.sonar/cache
           key: ${{ runner.os }}-sonar
           restore-keys: ${{ runner.os }}-sonar
 
       - name: SonarCloud Scan
-        uses: SonarSource/sonarcloud-github-action@v2
-        with:
-          args: >
-            -Dsonar.projectKey=advprog-2026-b7-project_mysawit-harvest
-            -Dsonar.organization=adpro-kelompok-b7
-            -Dsonar.java.binaries=build/classes
-            -Dsonar.coverage.jacoco.xmlReportPaths=build/reports/jacoco/test/jacocoTestReport.xml
+        run: ./gradlew sonar
         env:
           SONAR_TOKEN: ${{ secrets.SONAR_KEY }}
 
