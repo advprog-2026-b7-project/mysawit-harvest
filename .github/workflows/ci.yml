@@ -2,9 +2,9 @@ name: CI
 
 on:
   push:
-    branches: ["main", "feat/harvest-uc-h02"]
+    branches: ["main", "staging"]
   pull_request:
-    branches: ["main", "feat/harvest-uc-h02"]
+    branches: ["main", "staging"]
 
 jobs:
   build:
