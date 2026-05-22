@@ -1,0 +1,25 @@
+﻿{
+    "status":  "UP",
+    "components":  {
+                       "db":  {
+                                  "status":  "UP",
+                                  "details":  {
+                                                  "database":  "PostgreSQL",
+                                                  "validationQuery":  "isValid()"
+                                              }
+                              },
+                       "diskSpace":  {
+                                         "status":  "UP",
+                                         "details":  {
+                                                         "total":  419429347328,
+                                                         "free":  126896467968,
+                                                         "threshold":  10485760,
+                                                         "path":  "D:\\materi kuliah\\semester 4\\adpro\\Group Project\\mysawit-harvest\\.",
+                                                         "exists":  true
+                                                     }
+                                     },
+                       "ping":  {
+                                    "status":  "UP"
+                                }
+                   }
+}
