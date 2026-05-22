@@ -102,7 +102,7 @@ sonar {
         property("sonar.organization", "adpro-kelompok-b7")
         property("sonar.host.url", "https://sonarcloud.io")
         property("sonar.coverage.jacoco.xmlReportPaths", "build/reports/jacoco/test/jacocoTestReport.xml")
-        property("sonar.cpd.exclusions", ".github/workflows/**,build.gradle.kts")
-        property("sonar.exclusions", "src/main/resources/application-dev.properties")
+        property("sonar.cpd.exclusions", ".github/workflows/**,build.gradle.kts,*.md")
+        property("sonar.exclusions", "docker-compose.yml,*.md,src/main/resources/application-dev.properties,src/test/**")
     }
 }
